@@ -458,13 +458,15 @@ textarea { resize: vertical; min-height: 80px; }
 #setup-screen {
   display: none; position: fixed; inset: 0;
   background: var(--bg); z-index: 1000;
-  align-items: center; justify-content: center; padding: 20px;
+  align-items: flex-start; justify-content: center;
+  padding: 20px; overflow-y: auto;
 }
 #setup-screen.show { display: flex; }
 .setup-card {
   background: var(--bg2); border: 1px solid var(--border2);
-  border-radius: 16px; padding: 36px 32px;
+  border-radius: 16px; padding: 24px 20px;
   width: 480px; max-width: 100%;
+  margin: 20px auto;
 }
 .setup-logo { font-family: var(--mono); font-size: 14px; color: var(--green); letter-spacing: .1em; margin-bottom: 24px; }
 .setup-title { font-size: 22px; font-weight: 600; margin-bottom: 8px; }
@@ -510,6 +512,7 @@ code {
   border-radius: 3px; color: var(--purple);
 }
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 
