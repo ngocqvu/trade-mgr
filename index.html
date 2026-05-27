@@ -2927,7 +2927,7 @@ const ACCOUNT = (() => {
           </div>
         </div>
         ${navSnaps.length ? `<table class="tbl"><thead><tr><th>Date</th><th>NAV (M)</th><th>Label</th></tr></thead><tbody>${
-          navSnaps.slice(0,12).map(s => `<tr><td class="mono muted">${f.dateFull(s.date)}</td><td class="mono">${s.navM.toFixed(1)}M</td><td class="muted">${s.label||''}</td></tr>`).join('')
+          navSnaps.slice(0,12).map(s => `<tr><td class="mono muted">${f.dateFull(s.date)}</td><td class="mono">${s.navM.toFixed(1)}M</td><td class="muted">${s.label||''}</td><td><button class="btn btn-ghost btn-xs" onclick="ACCOUNT.deleteNavSnap('${s.date}')">✕</button></td></tr>`).join('')
         }</tbody></table>` : `<div class="empty-state" style="padding:20px"><div class="empty-state-title">Chưa có snapshot</div><button class="btn btn-primary btn-sm" onclick="MODALS.openAddNav('${year}-start')">Nhập NAV đầu năm ${year}</button></div>`}
       </div>
 
@@ -3039,7 +3039,14 @@ const ACCOUNT = (() => {
     event.target.value = '';
   }
 
-  return { render, exportJson, importJson, handleTaiSanUpload };
+  function deleteNavSnap(date) {
+    if (!confirm('Xoá snapshot ' + date + '?')) return;
+    DATA.db().navSnapshots = (DATA.db().navSnapshots || []).filter(s => s.date !== date);
+    DATA.markDirty();
+    render();
+  }
+
+  return { render, exportJson, importJson, handleTaiSanUpload, deleteNavSnap };
 })();
 
 // ============================================================
