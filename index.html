@@ -1,0 +1,3247 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trade Manager</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   DESIGN TOKENS
+   ============================================================ */
+:root {
+  --bg:     #0a0c0f;
+  --bg2:    #111418;
+  --bg3:    #181d23;
+  --bg4:    #1f252d;
+  --bg5:    #252c36;
+  --border: rgba(255,255,255,0.06);
+  --border2:rgba(255,255,255,0.10);
+  --border3:rgba(255,255,255,0.16);
+  --text:   #e8ecf0;
+  --text2:  #8a9ab0;
+  --text3:  #4a5568;
+  --text4:  #2d3748;
+  --green:  #00d4aa;
+  --green2: rgba(0,212,170,0.12);
+  --green3: rgba(0,212,170,0.06);
+  --red:    #ff4d6d;
+  --red2:   rgba(255,77,109,0.12);
+  --red3:   rgba(255,77,109,0.06);
+  --amber:  #f5a623;
+  --amber2: rgba(245,166,35,0.12);
+  --amber3: rgba(245,166,35,0.06);
+  --blue:   #4d9fff;
+  --blue2:  rgba(77,159,255,0.12);
+  --blue3:  rgba(77,159,255,0.06);
+  --purple: #a78bfa;
+  --purple2:rgba(167,139,250,0.12);
+  --mono:   'IBM Plex Mono', monospace;
+  --sans:   'DM Sans', sans-serif;
+  --radius: 8px;
+  --radius2:12px;
+}
+
+/* ============================================================
+   RESET & BASE
+   ============================================================ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 14px; }
+body {
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+a { color: inherit; text-decoration: none; }
+button { cursor: pointer; font-family: var(--sans); }
+input, select, textarea {
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--text);
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  outline: none;
+  transition: border-color .15s;
+  width: 100%;
+}
+input:focus, select:focus, textarea:focus { border-color: var(--green); }
+select option { background: var(--bg2); }
+textarea { resize: vertical; min-height: 80px; }
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--bg5); border-radius: 3px; }
+
+/* ============================================================
+   TOP NAV
+   ============================================================ */
+#top-nav {
+  position: sticky; top: 0; z-index: 200;
+  display: flex; align-items: center; gap: 0;
+  height: 52px;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 0 20px;
+}
+.nav-logo {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--green);
+  letter-spacing: .1em;
+  margin-right: 24px;
+  flex-shrink: 0;
+}
+.nav-logo span { color: var(--text3); }
+.nav-tabs { display: flex; gap: 2px; flex: 1; }
+.nav-tab {
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text3);
+  background: transparent;
+  border: none;
+  transition: all .15s;
+  white-space: nowrap;
+}
+.nav-tab:hover { color: var(--text2); background: var(--bg3); }
+.nav-tab.active { color: var(--green); background: var(--green2); }
+.nav-right { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+.sync-status {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text3);
+  display: flex; align-items: center; gap: 5px;
+}
+.sync-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--text4);
+  transition: background .3s;
+}
+.sync-dot.syncing { background: var(--amber); animation: pulse 1s infinite; }
+.sync-dot.synced  { background: var(--green); }
+.sync-dot.error   { background: var(--red); }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+/* ============================================================
+   LAYOUT
+   ============================================================ */
+.page {
+  display: none;
+  padding: 20px 24px;
+  max-width: 1440px;
+  animation: fadeIn .15s ease;
+}
+.page.active { display: block; }
+@keyframes fadeIn { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:none} }
+
+/* ============================================================
+   CARDS
+   ============================================================ */
+.card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius2);
+  padding: 16px 20px;
+}
+.card-sm { padding: 12px 16px; }
+.card-hd {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 14px;
+}
+.card-title {
+  font-size: 11px; font-weight: 600;
+  letter-spacing: .07em; text-transform: uppercase;
+  color: var(--text3);
+}
+
+/* ============================================================
+   METRIC TILES
+   ============================================================ */
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 10px;
+  margin-bottom: 18px;
+}
+.metric {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+.metric-label {
+  font-size: 10px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .06em;
+  color: var(--text3); margin-bottom: 8px;
+}
+.metric-value {
+  font-family: var(--mono);
+  font-size: 20px; font-weight: 500;
+  color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.metric-sub { font-size: 11px; color: var(--text3); margin-top: 4px; }
+.metric-value.pos { color: var(--green); }
+.metric-value.neg { color: var(--red); }
+.metric-value.amber { color: var(--amber); }
+
+/* ============================================================
+   TABLES
+   ============================================================ */
+.tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
+.tbl th {
+  text-align: left; padding: 7px 12px;
+  font-size: 10px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .06em; color: var(--text3);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.tbl td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.tbl tr:last-child td { border-bottom: none; }
+.tbl tbody tr:hover td { background: rgba(255,255,255,.015); }
+.tbl .mono { font-family: var(--mono); font-size: 11px; }
+.tbl .pos  { color: var(--green); }
+.tbl .neg  { color: var(--red); }
+.tbl .muted{ color: var(--text3); }
+
+/* ============================================================
+   BADGES
+   ============================================================ */
+.badge {
+  display: inline-flex; align-items: center;
+  font-size: 10px; font-weight: 600;
+  padding: 2px 8px; border-radius: 4px;
+  white-space: nowrap; font-family: var(--mono);
+  letter-spacing: .02em;
+}
+.badge-green  { background: var(--green2);  color: var(--green); }
+.badge-red    { background: var(--red2);    color: var(--red); }
+.badge-amber  { background: var(--amber2);  color: var(--amber); }
+.badge-blue   { background: var(--blue2);   color: var(--blue); }
+.badge-purple { background: var(--purple2); color: var(--purple); }
+.badge-gray   { background: var(--bg4);     color: var(--text2); }
+
+/* ============================================================
+   STATUS BADGES
+   ============================================================ */
+.status-open     { background: var(--green2);  color: var(--green); }
+.status-partial  { background: var(--blue2);   color: var(--blue); }
+.status-sl_alert { background: var(--red2);    color: var(--red); }
+.status-invalidated { background: var(--amber2); color: var(--amber); }
+.status-closed   { background: var(--bg4);     color: var(--text2); }
+
+/* ============================================================
+   BUTTONS
+   ============================================================ */
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 16px; border-radius: var(--radius);
+  font-size: 13px; font-weight: 500;
+  border: none; transition: all .15s;
+  white-space: nowrap;
+}
+.btn-primary { background: var(--green); color: #000; }
+.btn-primary:hover { opacity: .88; }
+.btn-secondary {
+  background: var(--bg4); color: var(--text2);
+  border: 1px solid var(--border2);
+}
+.btn-secondary:hover { border-color: var(--border3); color: var(--text); }
+.btn-danger { background: var(--red2); color: var(--red); border: 1px solid rgba(255,77,109,.2); }
+.btn-danger:hover { background: rgba(255,77,109,.2); }
+.btn-ghost { background: transparent; color: var(--text3); border: 1px solid transparent; }
+.btn-ghost:hover { background: var(--bg3); color: var(--text2); }
+.btn-sm { padding: 5px 10px; font-size: 11px; }
+.btn-xs { padding: 3px 8px; font-size: 10px; }
+.btn-icon { padding: 6px; border-radius: 6px; }
+
+/* ============================================================
+   FORMS
+   ============================================================ */
+.form-grid  { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.form-grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+.form-group { display: flex; flex-direction: column; gap: 5px; }
+.form-group.full { grid-column: 1 / -1; }
+.form-label { font-size: 11px; font-weight: 600; color: var(--text2); letter-spacing: .02em; }
+.form-hint  { font-size: 10px; color: var(--text3); }
+.computed-row {
+  background: var(--bg3); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 10px 14px;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 12px; margin-top: 4px;
+}
+.computed-item-label { font-size: 10px; color: var(--text3); margin-bottom: 2px; }
+.computed-item-value { font-family: var(--mono); font-size: 12px; font-weight: 500; }
+
+/* ============================================================
+   ALERTS / BANNERS
+   ============================================================ */
+.alert {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 10px 14px; border-radius: var(--radius);
+  font-size: 12px; line-height: 1.6; margin-bottom: 8px;
+}
+.alert-icon { font-size: 15px; flex-shrink: 0; margin-top: 1px; }
+.alert-body { flex: 1; }
+.alert-title { font-weight: 600; margin-bottom: 1px; }
+.alert-sub { opacity: .85; }
+.alert-danger  { background: var(--red3);   border: 1px solid rgba(255,77,109,.2);  color: var(--red); }
+.alert-warn    { background: var(--amber3); border: 1px solid rgba(245,166,35,.2);  color: var(--amber); }
+.alert-info    { background: var(--blue3);  border: 1px solid rgba(77,159,255,.2);  color: var(--blue); }
+.alert-success { background: var(--green3); border: 1px solid rgba(0,212,170,.2);   color: var(--green); }
+
+/* ============================================================
+   MODALS
+   ============================================================ */
+.modal-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,.65); z-index: 500;
+  align-items: center; justify-content: center;
+  padding: 20px;
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 14px;
+  padding: 24px;
+  width: 560px; max-width: 100%;
+  max-height: 90vh; overflow-y: auto;
+  animation: modalIn .2s ease;
+}
+.modal-lg { width: 720px; }
+.modal-sm { width: 400px; }
+@keyframes modalIn { from{opacity:0;transform:scale(.96)} to{opacity:1;transform:scale(1)} }
+.modal-hd {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 20px;
+}
+.modal-title { font-size: 16px; font-weight: 600; }
+.modal-close {
+  background: none; border: none; color: var(--text3);
+  font-size: 22px; line-height: 1; padding: 2px;
+  transition: color .15s;
+}
+.modal-close:hover { color: var(--text); }
+.modal-footer {
+  display: flex; gap: 8px; justify-content: flex-end;
+  margin-top: 20px; padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+/* ============================================================
+   SUBTABS
+   ============================================================ */
+.subtabs { display: flex; gap: 2px; margin-bottom: 16px; }
+.subtab {
+  padding: 6px 14px; border-radius: 6px;
+  font-size: 12px; font-weight: 500;
+  color: var(--text3); background: transparent;
+  border: 1px solid transparent;
+  transition: all .15s;
+}
+.subtab:hover { color: var(--text2); }
+.subtab.active { color: var(--text); background: var(--bg3); border-color: var(--border2); }
+
+/* ============================================================
+   SECTION DIVIDER
+   ============================================================ */
+.section-div {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 10px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .07em; color: var(--text3);
+  margin: 20px 0 12px;
+}
+.section-div::before, .section-div::after {
+  content: ''; flex: 1; height: 1px; background: var(--border);
+}
+
+/* ============================================================
+   PROGRESS BAR
+   ============================================================ */
+.prog-track { height: 6px; background: var(--bg4); border-radius: 3px; overflow: hidden; }
+.prog-fill  { height: 100%; border-radius: 3px; transition: width .4s; }
+
+/* ============================================================
+   TABS WITHIN DETAIL
+   ============================================================ */
+.detail-tabs { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+.detail-tab {
+  padding: 8px 16px; font-size: 13px; font-weight: 500;
+  color: var(--text3); background: none; border: none;
+  border-bottom: 2px solid transparent; margin-bottom: -1px;
+  transition: all .15s;
+}
+.detail-tab:hover { color: var(--text2); }
+.detail-tab.active { color: var(--green); border-bottom-color: var(--green); }
+
+/* ============================================================
+   GRIDS
+   ============================================================ */
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+.grid-main { display: grid; grid-template-columns: 1fr 340px; gap: 14px; }
+
+/* ============================================================
+   LOADING / EMPTY STATES
+   ============================================================ */
+.empty-state {
+  text-align: center; padding: 48px 24px;
+  color: var(--text3); font-size: 13px;
+}
+.empty-state-icon { font-size: 32px; margin-bottom: 12px; opacity: .4; }
+.empty-state-title { font-size: 14px; font-weight: 500; color: var(--text2); margin-bottom: 6px; }
+
+/* ============================================================
+   TIMELINE (position detail)
+   ============================================================ */
+.timeline { display: flex; flex-direction: column; }
+.timeline-item {
+  display: flex; gap: 12px; padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  position: relative;
+}
+.timeline-item:last-child { border-bottom: none; }
+.timeline-dot {
+  width: 28px; height: 28px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; flex-shrink: 0; margin-top: 2px;
+}
+.tl-buy   { background: var(--blue2);  color: var(--blue); }
+.tl-sell  { background: var(--red2);   color: var(--red); }
+.tl-divt  { background: var(--amber2); color: var(--amber); }
+.tl-divs  { background: var(--green2); color: var(--green); }
+.tl-rights{ background: var(--purple2);color: var(--purple); }
+.tl-adj   { background: var(--bg4);    color: var(--text3); font-size: 9px; }
+.timeline-content { flex: 1; }
+.timeline-title { font-size: 13px; font-weight: 500; margin-bottom: 3px; }
+.timeline-meta  { font-size: 11px; color: var(--text3); }
+.timeline-running {
+  font-family: var(--mono); font-size: 10px; color: var(--text3);
+  background: var(--bg3); border-radius: 4px;
+  padding: 2px 8px; margin-top: 4px; display: inline-block;
+}
+
+/* ============================================================
+   SL DISTANCE BAR
+   ============================================================ */
+.sl-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 0; border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+.sl-row:last-child { border-bottom: none; }
+.sl-ticker { font-weight: 600; width: 48px; flex-shrink: 0; }
+.sl-bar-wrap { flex: 1; }
+
+/* ============================================================
+   SECTOR CHART
+   ============================================================ */
+.sector-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 5px 0; font-size: 12px;
+}
+.sector-name { color: var(--text2); width: 90px; flex-shrink: 0; }
+
+/* ============================================================
+   SETUP SCREEN (GitHub token)
+   ============================================================ */
+#setup-screen {
+  display: none; position: fixed; inset: 0;
+  background: var(--bg); z-index: 1000;
+  align-items: center; justify-content: center; padding: 20px;
+}
+#setup-screen.show { display: flex; }
+.setup-card {
+  background: var(--bg2); border: 1px solid var(--border2);
+  border-radius: 16px; padding: 36px 32px;
+  width: 480px; max-width: 100%;
+}
+.setup-logo { font-family: var(--mono); font-size: 14px; color: var(--green); letter-spacing: .1em; margin-bottom: 24px; }
+.setup-title { font-size: 22px; font-weight: 600; margin-bottom: 8px; }
+.setup-subtitle { font-size: 13px; color: var(--text2); margin-bottom: 28px; line-height: 1.6; }
+.setup-steps { display: flex; flex-direction: column; gap: 8px; margin-bottom: 24px; }
+.setup-step {
+  display: flex; gap: 12px; align-items: flex-start;
+  padding: 10px 14px; background: var(--bg3);
+  border-radius: var(--radius); border: 1px solid var(--border);
+}
+.setup-step-num {
+  width: 20px; height: 20px; border-radius: 50%;
+  background: var(--green2); color: var(--green);
+  font-size: 11px; font-weight: 600;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.setup-step-body { font-size: 12px; color: var(--text2); line-height: 1.6; }
+.setup-step-body strong { color: var(--text); }
+.setup-step-body a { color: var(--green); text-decoration: underline; }
+
+/* ============================================================
+   UTILITY
+   ============================================================ */
+.divider { height: 1px; background: var(--border); margin: 16px 0; }
+.text-pos { color: var(--green); }
+.text-neg { color: var(--red); }
+.text-muted { color: var(--text3); }
+.text-mono { font-family: var(--mono); font-size: 12px; }
+.nowrap { white-space: nowrap; }
+.gap-8 { display: flex; gap: 8px; align-items: center; }
+.gap-6 { display: flex; gap: 6px; align-items: center; }
+.mt-4 { margin-top: 4px; }
+.mt-8 { margin-top: 8px; }
+.mt-12 { margin-top: 12px; }
+.mt-16 { margin-top: 16px; }
+.mb-12 { margin-bottom: 12px; }
+.mb-16 { margin-bottom: 16px; }
+.overflow-x { overflow-x: auto; }
+.w100 { width: 100%; }
+code {
+  font-family: var(--mono); font-size: 11px;
+  background: var(--bg4); padding: 1px 6px;
+  border-radius: 3px; color: var(--purple);
+}
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     SETUP SCREEN (first run — GitHub config)
+     ============================================================ -->
+<div id="setup-screen">
+  <div class="setup-card">
+    <div class="setup-logo">TRADE<span style="color:var(--text3)">/</span>MGR</div>
+    <div class="setup-title">Thiết lập lần đầu</div>
+    <div class="setup-subtitle">App dùng GitHub Gist để lưu data — sync được giữa PC và iPhone. Chỉ cần làm 1 lần.</div>
+    <div class="setup-steps">
+      <div class="setup-step">
+        <div class="setup-step-num">1</div>
+        <div class="setup-step-body">Vào <a href="https://gist.github.com" target="_blank">gist.github.com</a> → tạo 1 <strong>Private Gist</strong> mới, nội dung bất kỳ (VD: <code>{}</code>), tên file: <code>trademgr.json</code></div>
+      </div>
+      <div class="setup-step">
+        <div class="setup-step-num">2</div>
+        <div class="setup-step-body">Copy <strong>Gist ID</strong> từ URL: <code>gist.github.com/username/<strong>abc123def456</strong></code></div>
+      </div>
+      <div class="setup-step">
+        <div class="setup-step-num">3</div>
+        <div class="setup-step-body">Vào <a href="https://github.com/settings/tokens/new" target="_blank">GitHub Settings → Tokens (classic)</a> → tạo token với scope <strong>gist</strong></div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div class="form-group">
+        <label class="form-label">Gist ID</label>
+        <input type="text" id="setup-gist-id" placeholder="abc123def456...">
+      </div>
+      <div class="form-group">
+        <label class="form-label">GitHub Personal Access Token</label>
+        <input type="password" id="setup-token" placeholder="ghp_xxxxxxxxxxxx">
+        <span class="form-hint">Lưu trong localStorage máy anh — không gửi đi đâu ngoài api.github.com</span>
+      </div>
+      <div class="form-group">
+        <label class="form-label">NAV đầu năm <span id="setup-year"></span> (triệu VNĐ)</label>
+        <input type="number" id="setup-nav" placeholder="VD: 1334" step="0.1">
+      </div>
+    </div>
+    <div id="setup-error" style="display:none;margin-top:12px" class="alert alert-danger">
+      <span class="alert-icon">⚠</span>
+      <div class="alert-body" id="setup-error-text"></div>
+    </div>
+    <button class="btn btn-primary w100 mt-16" onclick="APP.setupSave()" id="setup-btn" style="width:100%">
+      Kết nối & bắt đầu →
+    </button>
+  </div>
+</div>
+
+<!-- ============================================================
+     TOP NAV
+     ============================================================ -->
+<nav id="top-nav">
+  <div class="nav-logo">TRADE<span>/</span>MGR</div>
+  <div class="nav-tabs">
+    <button class="nav-tab active" data-page="dashboard">Dashboard</button>
+    <button class="nav-tab" data-page="positions">Positions</button>
+    <button class="nav-tab" data-page="derivatives">Derivatives</button>
+    <button class="nav-tab" data-page="account">Account</button>
+    <button class="nav-tab" data-page="analytics">Analytics</button>
+  </div>
+  <div class="nav-right">
+    <div class="sync-status">
+      <div class="sync-dot" id="sync-dot"></div>
+      <span id="sync-label">—</span>
+    </div>
+    <button class="btn btn-secondary btn-sm" onclick="APP.syncNow()" title="Sync now">↻</button>
+    <button class="btn btn-primary btn-sm" onclick="MODALS.openAddPosition()">+ Position</button>
+  </div>
+</nav>
+
+<!-- ============================================================
+     PAGES
+     ============================================================ -->
+<div id="page-dashboard"   class="page active"></div>
+<div id="page-positions"   class="page"></div>
+<div id="page-derivatives" class="page"></div>
+<div id="page-account"     class="page"></div>
+<div id="page-analytics"   class="page"></div>
+
+<!-- ============================================================
+     MODALS CONTAINER
+     ============================================================ -->
+<div id="modals-container"></div>
+
+<!-- ============================================================
+     SCRIPTS — load order matters
+     ============================================================ -->
+<script>
+
+// === data.js ===
+// ============================================================
+// DATA.JS — Data model, business logic, GitHub Gist sync
+// ============================================================
+
+const DATA = (() => {
+
+  // ----------------------------------------------------------
+  // SCHEMA / DEFAULTS
+  // ----------------------------------------------------------
+  const EMPTY_DB = {
+    version: 2,
+    config: {
+      gistId: '',
+      token: '',
+    },
+    navSnapshots: [],      // [{date, navM, label}]  label='2025-start' etc
+    positions: [],         // Position objects (see newPosition())
+    derivatives: [],       // Derivative log entries
+    marginLog: [],         // [{date, balanceM, note, auto}]
+    cashFlow: [],          // [{date, type, amountM, note}]
+    lastSync: null,
+  };
+
+  // ----------------------------------------------------------
+  // CONSTANTS
+  // ----------------------------------------------------------
+  const FEE_RATE    = 0.0015;   // 0.15% per trade
+  const TAX_SELL    = 0.001;    // 0.1% on sell value
+  const TAX_DIV_CASH= 0.05;     // 5% — already deducted at source, user enters net
+  const TAX_DIV_STOCK_PAR = 10000; // 10,000đ par value
+  const TAX_DIV_STOCK_RATE = 0.05; // 5%
+
+  const LEG_TYPES = ['BUY','SELL','DIV_CASH','DIV_STOCK','RIGHTS'];
+  const SETUP_TYPES = ['EMA_CROSS','RS_BREAKOUT','UPTREND_PB','REVERSAL','FUNDAMENTAL','OTHER'];
+  const STOCK_TYPES = ['GROWTH','VALUE','CYCLICAL','DEFENSIVE','SPECULATIVE'];
+  const POSITION_TYPES = ['SWING','POSITION','INVESTMENT','SPECULATIVE','EVENT_DRIVEN'];
+  const MARKET_REGIMES = ['BULL','UPTREND','UNDER_PRESSURE','CORRECTION','BEAR'];
+  const CLOSE_REASONS  = ['TARGET_HIT','STOPLOSS','MARKET_EXIT','THESIS_FAIL','REBALANCE','MANUAL'];
+  const SECTORS = ['Bank','Finance','Tech','Real Estate','Oil & Gas','Transport','Industrial','Consumer','Material','Utility','Other'];
+  const STATUSES = ['OPEN','PARTIAL','STOPLOSS_ALERT','INVALIDATED','CLOSED'];
+  const CASH_FLOW_TYPES = ['DEPOSIT','WITHDRAWAL','QUARTERLY_WITHDRAW','MARGIN_INTEREST'];
+  const DERIV_DIRECTIONS = ['LONG','SHORT'];
+
+  // ----------------------------------------------------------
+  // POSITION FACTORY
+  // ----------------------------------------------------------
+  function newPosition(overrides = {}) {
+    return {
+      // Identity
+      id: '',              // YYYYMMDD_TICKER (set on create)
+      ticker: '',
+      sector: 'Other',
+      positionType: 'SWING',
+      marketRegime: 'UPTREND',
+      status: 'OPEN',      // OPEN | PARTIAL | STOPLOSS_ALERT | INVALIDATED | CLOSED
+      openDate: '',        // first buy date
+      closeDate: '',       // last sell date (when fully closed)
+      closeReason: '',
+
+      // Entry criteria
+      buyingType: 'EMA_CROSS',
+      stockType: 'GROWTH',
+      pbBuy: null,
+      pbSell: null,
+      peBuy: null,
+      peSell: null,
+      rs52wBuy: null,      // Minervini RS % from 52w high at first buy
+      rs52wSell: null,
+      roe: null,
+      roa: null,
+      avgVol2w: null,      // avg volume 2 weeks (000 shares)
+      thesis: '',
+
+      // Stoploss
+      stoplossCurrent: null,
+      stoplossHistory: [], // [{date, price, reason}]
+      slHitDate: null,     // date SL was breached
+
+      // Close notes
+      closeGrade: null,
+      closeNotes: '',
+
+      // Legs (array of leg objects)
+      legs: [],
+
+      // Grade
+      grade: 3,
+      notes: '',
+
+      ...overrides
+    };
+  }
+
+  function newLeg(overrides = {}) {
+    return {
+      id: Date.now() + Math.random(),
+      date: '',
+      type: 'BUY',         // BUY|SELL|DIV_CASH|DIV_STOCK|RIGHTS
+      qty: 0,
+      price: 0,            // for BUY/SELL: price per share; DIV_CASH: net cash received (VND); DIV_STOCK: shares received; RIGHTS: shares entitled
+      // RIGHTS extra fields
+      rightsPrice: null,   // issue price
+      rightsDeadline: null,
+      rightsPending: true, // false once exercised/declined
+      rightsDeclined: false,
+      // auto-calculated (stored for display)
+      fee: 0,
+      tax: 0,
+      netValue: 0,         // after fee & tax
+      avgCostAfter: 0,     // running avg cost after this leg
+      qtyAfter: 0,         // running qty after this leg
+      note: '',
+      isMargin: false,
+      ...overrides
+    };
+  }
+
+  // ----------------------------------------------------------
+  // POSITION ID
+  // ----------------------------------------------------------
+  function makePositionId(openDate, ticker) {
+    // YYYYMMDD_TICKER  e.g. 20240115_ACB
+    const d = openDate.replace(/-/g, '');
+    return `${d}_${ticker.toUpperCase()}`;
+  }
+
+  function closePositionId(position, closeDate, isWin) {
+    // 20240115_ACB_202410_W
+    const cd = closeDate ? closeDate.slice(0, 7).replace('-', '') : '';
+    return `${position.id}_${cd}_${isWin ? 'W' : 'L'}`;
+  }
+
+  // ----------------------------------------------------------
+  // LEG CALCULATIONS
+  // ----------------------------------------------------------
+  function calcLeg(leg, runningQty, runningCost) {
+    // runningCost = total cost basis before this leg (VND)
+    const result = { ...leg };
+    const value = leg.qty * leg.price;
+
+    if (leg.type === 'BUY') {
+      result.fee    = Math.round(value * FEE_RATE);
+      result.tax    = 0;
+      result.netValue = -(value + result.fee);  // outflow
+      const newCost = runningCost + value + result.fee;
+      const newQty  = runningQty + leg.qty;
+      result.avgCostAfter = newQty > 0 ? Math.round(newCost / newQty) : 0;
+      result.qtyAfter = newQty;
+      result._newRunningCost = newCost;
+      result._newRunningQty  = newQty;
+
+    } else if (leg.type === 'SELL') {
+      result.fee = Math.round(value * FEE_RATE);
+      result.tax = Math.round(value * TAX_SELL);
+      result.netValue = value - result.fee - result.tax;  // inflow
+      // cost basis reduces proportionally
+      const costPerShare = runningQty > 0 ? runningCost / runningQty : 0;
+      const costReduced  = costPerShare * leg.qty;
+      const newQty  = runningQty - leg.qty;
+      const newCost = runningCost - costReduced;
+      result.avgCostAfter = newQty > 0 ? Math.round(newCost / newQty) : 0;
+      result.qtyAfter = newQty;
+      result._newRunningCost = Math.max(0, newCost);
+      result._newRunningQty  = newQty;
+      // partial P&L on this sell
+      result._sellPnL = (leg.price - costPerShare) * leg.qty - result.fee - result.tax;
+
+    } else if (leg.type === 'DIV_CASH') {
+      // leg.price = net cash received after 5% TNCN already deducted by FPTS
+      result.fee = 0;
+      result.tax = 0;  // already deducted
+      result.netValue = leg.price;  // positive inflow
+      result.avgCostAfter = runningQty > 0 ? Math.round(runningCost / runningQty) : 0;
+      result.qtyAfter = runningQty;
+      result._newRunningCost = runningCost;
+      result._newRunningQty  = runningQty;
+
+    } else if (leg.type === 'DIV_STOCK') {
+      // leg.qty = shares received
+      // Adjust: avg cost = old total cost / (old qty + new qty)  [price does NOT increase cost basis]
+      // Tax liability: leg.qty * 10000 * 5% — deferred until sale
+      result.fee = 0;
+      result.tax = 0;  // deferred
+      result._taxDeferred = Math.round(leg.qty * TAX_DIV_STOCK_PAR * TAX_DIV_STOCK_RATE);
+      const newQty  = runningQty + leg.qty;
+      const newCost = runningCost; // cost basis stays same, diluted over more shares
+      result.avgCostAfter = newQty > 0 ? Math.round(newCost / newQty) : 0;
+      result.qtyAfter = newQty;
+      result.netValue = 0;  // no cash flow
+      result._newRunningCost = newCost;
+      result._newRunningQty  = newQty;
+      // Suggested SL adjustment
+      result._slAdjFactor = runningQty > 0 ? runningQty / newQty : 1;
+
+    } else if (leg.type === 'RIGHTS') {
+      // Pending — no effect until exercised
+      result.fee = 0; result.tax = 0; result.netValue = 0;
+      result.avgCostAfter = runningQty > 0 ? Math.round(runningCost / runningQty) : 0;
+      result.qtyAfter = runningQty;
+      result._newRunningCost = runningCost;
+      result._newRunningQty  = runningQty;
+    }
+
+    return result;
+  }
+
+  // ----------------------------------------------------------
+  // RECOMPUTE ALL LEGS for a position (call whenever legs change)
+  // ----------------------------------------------------------
+  function recomputeLegs(position) {
+    let runningQty  = 0;
+    let runningCost = 0;
+    const computed = [];
+
+    // Sort by date
+    const sorted = [...position.legs].sort((a, b) => a.date.localeCompare(b.date));
+
+    for (const leg of sorted) {
+      const cl = calcLeg(leg, runningQty, runningCost);
+      computed.push(cl);
+      if (cl._newRunningQty !== undefined)  runningQty  = cl._newRunningQty;
+      if (cl._newRunningCost!== undefined) runningCost = cl._newRunningCost;
+    }
+
+    position.legs = computed;
+    return position;
+  }
+
+  // ----------------------------------------------------------
+  // POSITION SUMMARY (computed from legs)
+  // ----------------------------------------------------------
+  function positionSummary(position) {
+    const legs = position.legs;
+    const buys  = legs.filter(l => l.type === 'BUY');
+    const sells = legs.filter(l => l.type === 'SELL');
+    const divCash  = legs.filter(l => l.type === 'DIV_CASH');
+    const divStock = legs.filter(l => l.type === 'DIV_STOCK');
+
+    const totalBuyQty   = buys.reduce((s, l) => s + l.qty, 0);
+    const totalBuyValue = buys.reduce((s, l) => s + l.qty * l.price, 0);
+    const totalBuyFee   = buys.reduce((s, l) => s + l.fee, 0);
+
+    const totalSellQty   = sells.reduce((s, l) => s + l.qty, 0);
+    const totalSellValue = sells.reduce((s, l) => s + l.qty * l.price, 0);
+    const totalSellFee   = sells.reduce((s, l) => s + l.fee, 0);
+    const totalSellTax   = sells.reduce((s, l) => s + l.tax, 0);
+
+    const divCashTotal  = divCash.reduce((s, l)  => s + l.price, 0);
+    const divStockQty   = divStock.reduce((s, l) => s + l.qty, 0);
+    const divStockTaxDeferred = divStock.reduce((s, l) => s + (l._taxDeferred || 0), 0);
+
+    // Current state from last leg
+    const lastLeg = legs.length > 0 ? legs[legs.length - 1] : null;
+    const currentQty     = lastLeg ? lastLeg.qtyAfter : 0;
+    const avgCost        = lastLeg ? lastLeg.avgCostAfter : 0;
+
+    const avgBuyPrice  = totalBuyQty  > 0 ? totalBuyValue  / totalBuyQty  : 0;
+    const avgSellPrice = totalSellQty > 0 ? totalSellValue / totalSellQty : 0;
+
+    // Gross P&L = sell proceeds - cost of sold shares - all fees - sell taxes
+    const costOfSold = totalBuyQty > 0 ? (totalBuyValue / totalBuyQty) * totalSellQty : 0;
+    const grossPnL   = totalSellValue - costOfSold - totalBuyFee - totalSellFee - totalSellTax;
+
+    // Net P&L includes dividends
+    const netPnL = grossPnL + divCashTotal;
+
+    // % P&L on invested capital
+    const invested = totalBuyValue + totalBuyFee;
+    const pctPnL   = invested > 0 ? netPnL / invested : 0;
+
+    // Hold days
+    const firstBuy = buys.length > 0 ? buys[0].date : position.openDate;
+    const lastSell = sells.length > 0 ? sells[sells.length - 1].date : null;
+    const endDate  = lastSell || new Date().toISOString().split('T')[0];
+    const holdDays = firstBuy ? Math.floor((new Date(endDate) - new Date(firstBuy)) / 86400000) : 0;
+
+    // Total fees paid
+    const totalFees = totalBuyFee + totalSellFee + totalSellTax;
+
+    return {
+      totalBuyQty, totalBuyValue, totalBuyFee,
+      totalSellQty, totalSellValue, totalSellFee, totalSellTax,
+      divCashTotal, divStockQty, divStockTaxDeferred,
+      currentQty, avgCost, avgBuyPrice, avgSellPrice,
+      grossPnL, netPnL, pctPnL, invested, totalFees,
+      holdDays, firstBuy, lastSell,
+    };
+  }
+
+  // ----------------------------------------------------------
+  // DERIVE STATUS from position
+  // ----------------------------------------------------------
+  function deriveStatus(position, currentPrice) {
+    const summary = positionSummary(position);
+    if (summary.currentQty <= 0) return 'CLOSED';
+    if (position.status === 'INVALIDATED') return 'INVALIDATED';
+
+    // SL check
+    if (position.stoplossCurrent && currentPrice) {
+      if (currentPrice < position.stoplossCurrent) return 'STOPLOSS_ALERT';
+    }
+    if (summary.totalSellQty > 0 && summary.currentQty > 0) return 'PARTIAL';
+    return 'OPEN';
+  }
+
+  // ----------------------------------------------------------
+  // SL ADJUST after DIV_STOCK
+  // ----------------------------------------------------------
+  function suggestSlAfterDivStock(currentSl, divFactor) {
+    // divFactor = oldQty / newQty e.g. 10000/11500 for 15% stock div
+    return Math.round(currentSl * divFactor);
+  }
+
+  // ----------------------------------------------------------
+  // FORMAT HELPERS
+  // ----------------------------------------------------------
+  const fmt = {
+    M:    v => v == null ? '—' : (v / 1e6).toFixed(2) + 'M',
+    Mshort: v => v == null ? '—' : (v / 1e6).toFixed(1) + 'M',
+    pct:  v => v == null ? '—' : (v * 100).toFixed(2) + '%',
+    price: v => v == null ? '—' : v.toLocaleString('vi-VN') + 'đ',
+    qty:   v => v == null ? '—' : v.toLocaleString('vi-VN'),
+    date:  v => v ? v.slice(5).replace('-', '/') : '—',  // MM/DD
+    dateFull: v => v ? v.split('-').reverse().join('/') : '—',
+    days:  v => v == null ? '—' : v + 'd',
+    sign:  v => v > 0 ? '+' : '',
+    pctSign: v => (v >= 0 ? '+' : '') + (v * 100).toFixed(2) + '%',
+    Msign: v => (v >= 0 ? '+' : '') + (v / 1e6).toFixed(2) + 'M',
+    cls:   v => v > 0 ? 'pos' : v < 0 ? 'neg' : 'muted',
+  };
+
+  // ----------------------------------------------------------
+  // GITHUB GIST SYNC
+  // ----------------------------------------------------------
+  let _db    = null;
+  let _dirty = false;
+  let _saveTimer = null;
+
+  function getConfig() {
+    return {
+      gistId: localStorage.getItem('tm_gist_id') || '',
+      token:  localStorage.getItem('tm_token')   || '',
+    };
+  }
+
+  function setConfig(gistId, token) {
+    localStorage.setItem('tm_gist_id', gistId);
+    localStorage.setItem('tm_token',   token);
+  }
+
+  function isConfigured() {
+    const c = getConfig();
+    return !!(c.gistId && c.token);
+  }
+
+  async function loadFromGist() {
+    const { gistId, token } = getConfig();
+    setSyncState('syncing', 'Đang tải...');
+    try {
+      const res = await fetch(`https://api.github.com/gists/${gistId}`, {
+        headers: {
+          'Authorization': `token ${token}`,
+          'Accept': 'application/vnd.github.v3+json',
+        }
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const gist = await res.json();
+      const file = gist.files['trademgr.json'];
+      if (!file) throw new Error('trademgr.json not found in Gist');
+      const text = file.content;
+      if (!text || text.trim() === '' || text.trim() === '{}') {
+        _db = { ...EMPTY_DB };
+      } else {
+        _db = JSON.parse(text);
+        // migrate if needed
+        if (!_db.version || _db.version < 2) _db = migrateDb(_db);
+      }
+      setSyncState('synced', 'Synced ' + new Date().toLocaleTimeString('vi-VN', {hour:'2-digit', minute:'2-digit'}));
+      return _db;
+    } catch(e) {
+      setSyncState('error', 'Lỗi: ' + e.message);
+      throw e;
+    }
+  }
+
+  async function saveToGist(immediate = false) {
+    if (!_dirty && !immediate) return;
+    const { gistId, token } = getConfig();
+    if (!gistId || !token) return;
+    setSyncState('syncing', 'Đang lưu...');
+    try {
+      const res = await fetch(`https://api.github.com/gists/${gistId}`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `token ${token}`,
+          'Accept': 'application/vnd.github.v3+json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          files: { 'trademgr.json': { content: JSON.stringify(_db, null, 2) } }
+        })
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      _dirty = false;
+      _db.lastSync = new Date().toISOString();
+      setSyncState('synced', 'Saved ' + new Date().toLocaleTimeString('vi-VN', {hour:'2-digit', minute:'2-digit'}));
+    } catch(e) {
+      setSyncState('error', 'Save failed: ' + e.message);
+    }
+  }
+
+  function markDirty() {
+    _dirty = true;
+    clearTimeout(_saveTimer);
+    _saveTimer = setTimeout(() => saveToGist(), 3000); // auto-save after 3s idle
+  }
+
+  function setSyncState(state, label) {
+    const dot = document.getElementById('sync-dot');
+    const lbl = document.getElementById('sync-label');
+    if (!dot || !lbl) return;
+    dot.className = 'sync-dot ' + state;
+    lbl.textContent = label;
+  }
+
+  function migrateDb(old) {
+    // basic migration from v1
+    return { ...EMPTY_DB, ...old, version: 2 };
+  }
+
+  // ----------------------------------------------------------
+  // DB ACCESSORS
+  // ----------------------------------------------------------
+  function db() { return _db || EMPTY_DB; }
+
+  function getPositions(statusFilter = null) {
+    const all = db().positions || [];
+    if (!statusFilter) return all;
+    if (statusFilter === 'active') return all.filter(p => ['OPEN','PARTIAL','STOPLOSS_ALERT','INVALIDATED'].includes(p.status));
+    if (statusFilter === 'closed') return all.filter(p => p.status === 'CLOSED');
+    return all.filter(p => p.status === statusFilter);
+  }
+
+  function getPosition(id) {
+    return (db().positions || []).find(p => p.id === id);
+  }
+
+  function savePosition(position) {
+    recomputeLegs(position);
+    const idx = _db.positions.findIndex(p => p.id === position.id);
+    if (idx >= 0) _db.positions[idx] = position;
+    else _db.positions.push(position);
+    markDirty();
+  }
+
+  function deletePosition(id) {
+    _db.positions = _db.positions.filter(p => p.id !== id);
+    markDirty();
+  }
+
+  function addLegToPosition(positionId, legData) {
+    const pos = getPosition(positionId);
+    if (!pos) return;
+    const leg = newLeg(legData);
+    pos.legs.push(leg);
+    recomputeLegs(pos);
+    // update status
+    const summary = positionSummary(pos);
+    if (summary.currentQty <= 0) {
+      pos.status = 'CLOSED';
+      pos.closeDate = legData.date;
+    } else if (summary.totalSellQty > 0) {
+      pos.status = 'PARTIAL';
+    }
+    savePosition(pos);
+    return pos;
+  }
+
+  // Margin log
+  function addMarginEntry(entry) {
+    if (!_db.marginLog) _db.marginLog = [];
+    _db.marginLog.push(entry);
+    _db.marginLog.sort((a, b) => a.date.localeCompare(b.date));
+    markDirty();
+  }
+
+  function getMarginInterestMonth(monthStr) {
+    // monthStr: 'YYYY-MM'
+    // Find entries in this month, compute delta where balance increased with no new drawdown
+    const entries = (_db.marginLog || []).filter(e => e.date.startsWith(monthStr));
+    // Simple: sum of auto margin interest events
+    return entries.filter(e => e.auto).reduce((s, e) => s + (e.interestM || 0), 0);
+  }
+
+  // NAV snapshots
+  function getNavStart(year) {
+    const snaps = db().navSnapshots || [];
+    const start = snaps.find(s => s.label === `${year}-start`);
+    return start ? start.navM * 1e6 : null;
+  }
+
+  function getLatestNav() {
+    const snaps = db().navSnapshots || [];
+    if (snaps.length === 0) return null;
+    const sorted = [...snaps].sort((a, b) => b.date.localeCompare(a.date));
+    return sorted[0];
+  }
+
+  function upsertNavSnapshot(date, navM, label = null) {
+    if (!_db.navSnapshots) _db.navSnapshots = [];
+    const existing = _db.navSnapshots.find(s => s.date === date);
+    if (existing) { existing.navM = navM; if (label) existing.label = label; }
+    else _db.navSnapshots.push({ date, navM, label: label || '' });
+    markDirty();
+  }
+
+  // Cash flow
+  function addCashFlow(entry) {
+    if (!_db.cashFlow) _db.cashFlow = [];
+    _db.cashFlow.push({ ...entry, id: Date.now() });
+    markDirty();
+  }
+
+  // Derivatives
+  function saveDerivative(deriv) {
+    if (!_db.derivatives) _db.derivatives = [];
+    const idx = _db.derivatives.findIndex(d => d.id === deriv.id);
+    if (idx >= 0) _db.derivatives[idx] = deriv;
+    else _db.derivatives.push(deriv);
+    markDirty();
+  }
+
+  function deleteDerivative(id) {
+    _db.derivatives = (_db.derivatives || []).filter(d => d.id !== id);
+    markDirty();
+  }
+
+  // ----------------------------------------------------------
+  // DASHBOARD COMPUTED STATS
+  // ----------------------------------------------------------
+  function dashboardStats(currentPrices = {}) {
+    const positions = getPositions('active');
+    const year = new Date().getFullYear();
+    const navStart = getNavStart(year);
+    const latestNav = getLatestNav();
+    const navNow = latestNav ? latestNav.navM * 1e6 : null;
+    const ytd = navStart && navNow ? (navNow - navStart) / navStart : null;
+
+    // Monthly P&L from closed legs this month
+    const now = new Date();
+    const monthStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    let monthPnL = 0;
+    for (const pos of db().positions || []) {
+      for (const leg of pos.legs || []) {
+        if (!leg.date.startsWith(monthStr)) continue;
+        if (leg.type === 'SELL') monthPnL += (leg._sellPnL || 0);
+        if (leg.type === 'DIV_CASH') monthPnL += leg.price;
+      }
+    }
+    // Add margin interest
+    monthPnL -= (getMarginInterestMonth(monthStr) * 1e6);
+
+    // Drawdown: based on NAV snapshots this month
+    const snaps = (db().navSnapshots || [])
+      .filter(s => s.date >= `${year}-01-01`)
+      .sort((a, b) => a.date.localeCompare(b.date));
+    let drawdown = 0;
+    if (snaps.length >= 2 && navNow) {
+      const peak = Math.max(...snaps.map(s => s.navM));
+      drawdown = navNow ? (navNow / 1e6 - peak) / peak : 0;
+    }
+
+    // Win rate (closed positions this year)
+    const closedThisYear = (db().positions || []).filter(p => p.status === 'CLOSED' && (p.closeDate || '').startsWith(String(year)));
+    const wins = closedThisYear.filter(p => positionSummary(p).netPnL > 0).length;
+    const winRate = closedThisYear.length > 0 ? wins / closedThisYear.length : null;
+
+    // Latest margin balance
+    const marginLog = (db().marginLog || []).sort((a, b) => b.date.localeCompare(a.date));
+    const latestMargin = marginLog.length > 0 ? marginLog[0].balanceM : 0;
+
+    return {
+      navNow, navStart, ytd, monthPnL, drawdown, winRate,
+      openCount: positions.length,
+      latestMargin,
+    };
+  }
+
+  // ----------------------------------------------------------
+  // ANALYTICS
+  // ----------------------------------------------------------
+  function analyticsData(filters = {}) {
+    let positions = (db().positions || []).filter(p => p.status === 'CLOSED');
+
+    if (filters.year)        positions = positions.filter(p => (p.closeDate || '').startsWith(filters.year));
+    if (filters.setup)       positions = positions.filter(p => p.buyingType === filters.setup);
+    if (filters.sector)      positions = positions.filter(p => p.sector === filters.sector);
+    if (filters.regime)      positions = positions.filter(p => p.marketRegime === filters.regime);
+    if (filters.closeReason) positions = positions.filter(p => p.closeReason === filters.closeReason);
+    if (filters.posType)     positions = positions.filter(p => p.positionType === filters.posType);
+    if (filters.result === 'W') positions = positions.filter(p => positionSummary(p).netPnL > 0);
+    if (filters.result === 'L') positions = positions.filter(p => positionSummary(p).netPnL <= 0);
+
+    const summaries = positions.map(p => ({ pos: p, s: positionSummary(p) }));
+    const wins  = summaries.filter(x => x.s.netPnL > 0);
+    const losses= summaries.filter(x => x.s.netPnL <= 0);
+
+    return {
+      positions,
+      summaries,
+      total: summaries.length,
+      winRate: summaries.length > 0 ? wins.length / summaries.length : null,
+      avgWinPct: wins.length > 0 ? wins.reduce((s,x)=>s+x.s.pctPnL,0)/wins.length : null,
+      avgLossPct: losses.length > 0 ? losses.reduce((s,x)=>s+x.s.pctPnL,0)/losses.length : null,
+      avgHoldDays: summaries.length > 0 ? summaries.reduce((s,x)=>s+x.s.holdDays,0)/summaries.length : null,
+      totalNetPnL: summaries.reduce((s,x)=>s+x.s.netPnL, 0),
+    };
+  }
+
+  // ----------------------------------------------------------
+  // EXPORT
+  // ----------------------------------------------------------
+  return {
+    // constants
+    SECTORS, SETUP_TYPES, STOCK_TYPES, POSITION_TYPES, MARKET_REGIMES,
+    CLOSE_REASONS, LEG_TYPES, STATUSES, CASH_FLOW_TYPES, DERIV_DIRECTIONS,
+    FEE_RATE, TAX_SELL,
+
+    // factories
+    newPosition, newLeg, makePositionId, closePositionId,
+
+    // calculation
+    calcLeg, recomputeLegs, positionSummary, deriveStatus,
+    suggestSlAfterDivStock,
+
+    // format
+    fmt,
+
+    // sync
+    getConfig, setConfig, isConfigured,
+    loadFromGist, saveToGist, markDirty, setSyncState,
+
+    // db access
+    db, getPositions, getPosition, savePosition, deletePosition,
+    addLegToPosition, addMarginEntry, getMarginInterestMonth,
+    getNavStart, getLatestNav, upsertNavSnapshot,
+    addCashFlow, saveDerivative, deleteDerivative,
+
+    // computed
+    dashboardStats, analyticsData, positionSummary,
+  };
+})();
+
+
+// === import.js ===
+// ============================================================
+// IMPORT.JS — FPTS file parsers (fixed based on actual file structure)
+// ============================================================
+
+const IMPORT = (() => {
+
+  async function readXlsAsText(file) {
+    return new Promise((res, rej) => {
+      const reader = new FileReader();
+      reader.onload = e => res(e.target.result);
+      reader.onerror = rej;
+      reader.readAsText(file, 'utf-8');
+    });
+  }
+
+  // Parse FPTS XLS — returns array of tables, each table = array of rows, each row = array of cell strings
+  async function parseFptsXls(file) {
+    const text = await readXlsAsText(file);
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(text, 'text/html');
+    const tables = doc.querySelectorAll('table');
+    const result = [];
+    tables.forEach(t => {
+      const rows = [];
+      t.querySelectorAll('tr').forEach(tr => {
+        const cells = [];
+        tr.querySelectorAll('td,th').forEach(td => cells.push((td.innerText || td.textContent || '').trim()));
+        rows.push(cells);
+      });
+      result.push(rows);
+    });
+    return result;
+  }
+
+  // ----------------------------------------------------------
+  // PARSE BaoCaoTaiSan.xls
+  // Structure confirmed:
+  //   Table 1 (2-col): row 0=Tien co the GD, row 9=Tong tien, row 17=Du no vay ky quy
+  //   Table 2 (multi-col): stock rows = MBS/MSN/PVS/VIB with cols:
+  //     [0]=Ticker [5]=TongKL [6]=GiaTT [7]=GiaTriTT [8]=GiaVon [9]=GiaTriVon
+  // ----------------------------------------------------------
+  async function parseBaoCaoTaiSan(file) {
+    const tables = await parseFptsXls(file);
+    const result = { date: new Date().toISOString().split('T')[0], navM: 0, marginM: 0, cashM: 0, portfolio: [] };
+
+    // Try to get date from filename or first table text
+    for (const rows of tables) {
+      for (const row of rows) {
+        const txt = row.join(' ');
+        const m = txt.match(/(\d{2})[\/-](\d{2})[\/-](\d{4})/);
+        if (m) { result.date = `${m[3]}-${m[2]}-${m[1]}`; break; }
+      }
+      if (result.date !== new Date().toISOString().split('T')[0]) break;
+    }
+
+    // Table 1 (index 1): 2-column cash/margin summary
+    if (tables[1]) {
+      for (const row of tables[1]) {
+        const label = (row[0] || '').toLowerCase();
+        const numVal = parseVND(row[1]);
+        if (label.includes('tổng tiền') || label.includes('ii.')) {
+          if (numVal) result.cashM = numVal / 1e6;
+        }
+        if (label.includes('dư nợ') || label.includes('ký quỹ')) {
+          if (numVal) result.marginM = numVal / 1e6;
+        }
+      }
+    }
+
+    // Table 2 (index 2): portfolio rows
+    // Columns: [0]Ticker [1]SLCoTheDatBan [2]SLBanChoKhop [3]CKChoVe [4]TongKL [5]GiaTT [6]GiaTriTT [7]GiaVon [8]GiaTriVon ...
+    // BUT actual data shows: col0=Ticker, col4=TongKL(after skipping blanks), col5=GiaTT, col7=GiaVon
+    if (tables[2]) {
+      for (const row of tables[2]) {
+        const ticker = (row[0] || '').trim().toUpperCase();
+        if (!/^[A-Z]{2,4}\d*$/.test(ticker) || ticker === 'TỔNG' || ticker === 'TONG' || ticker === 'MÃ' || ticker === 'CK') continue;
+        // From actual data: col indices 0=ticker,4=TongKL,5=GiaTT,7=GiaVon,8=GiaTriVon
+        const qty          = parseVND(row[4]);
+        const currentPrice = parseVND(row[5]);
+        const avgCost      = parseVND(row[7]);
+        if (!qty || !currentPrice) continue;
+        result.portfolio.push({ ticker, qty, currentPrice, avgCost: avgCost || currentPrice });
+      }
+    }
+
+    // Fallback: scan all tables for portfolio rows if table 2 empty
+    if (!result.portfolio.length) {
+      for (const rows of tables) {
+        for (const row of rows) {
+          const ticker = (row[0] || '').trim().toUpperCase();
+          if (!/^[A-Z]{2,4}\d*$/.test(ticker) || ticker.length > 5) continue;
+          const nums = row.map(parseVND).filter(v => v !== null && v > 100);
+          if (nums.length >= 3) {
+            result.portfolio.push({ ticker, qty: nums[0], currentPrice: nums[1], avgCost: nums[2] });
+          }
+        }
+      }
+    }
+
+    // NAV = cash + market value - margin
+    const mktVal = result.portfolio.reduce((s, p) => s + p.qty * p.currentPrice, 0);
+    result.navM = (result.cashM + mktVal / 1e6) - result.marginM;
+    return result;
+  }
+
+  // ----------------------------------------------------------
+  // PARSE LichSuKhopLenh.xls
+  // Structure confirmed (cols):
+  //   0=Ngay  1=Mua/Ban  2=CK(blank for partial fills)  3=TiLeVay  4=KLKhop  5=GiaKhop  6=GiaTri  7=ThueTNCN  8=ThueDauTuVon  9=Phi
+  // Skip rows where col1 contains "Tổng"
+  // ----------------------------------------------------------
+  async function parseLichSuKhopLenh(file) {
+    const tables = await parseFptsXls(file);
+    const legs = [];
+    let lastTicker = null;
+
+    for (const rows of tables) {
+      for (const row of rows) {
+        const col0 = (row[0] || '').trim();
+        const col1 = (row[1] || '').trim();
+
+        // Skip summary/header rows
+        if (!col0) continue;
+        if (col1.includes('Tổng') || col1.includes('Tong') || col1.includes('Mua/Bán')) continue;
+
+        // Must be a date row
+        const dateMatch = col0.match(/^(\d{2})[\/-](\d{2})[\/-](\d{4})$/);
+        if (!dateMatch) continue;
+        const date = `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}`;
+
+        // Must be Mua or Bán
+        if (!col1.includes('Mua') && !col1.includes('Bán') && !col1.includes('Ban')) continue;
+        const type = col1.includes('Bán') || col1.includes('Ban') ? 'SELL' : 'BUY';
+
+        // Ticker: col2, blank for partial fills of same order
+        const tickerRaw = (row[2] || '').trim().toUpperCase();
+        if (/^[A-Z]{2,4}\d*$/.test(tickerRaw) && tickerRaw.length <= 5 && tickerRaw !== 'NAN') {
+          lastTicker = tickerRaw;
+        }
+        const ticker = lastTicker;
+        if (!ticker) continue;
+
+        const isMargin = (row[3] || '').includes('%') || (row[3] || '').includes('50');
+        const qty      = parseVND(row[4]);
+        const price    = parseVND(row[5]);
+        const fee      = parseVND(row[9]);
+        const taxSell  = parseVND(row[7]);
+        const taxDivStock = parseVND(row[8]);
+
+        if (!qty || qty <= 0 || !price || price <= 0) continue;
+
+        legs.push({ date, type, ticker, qty, price,
+          value: qty * price, fee: fee || 0,
+          taxSell: taxSell || 0, taxDivStock: taxDivStock || 0,
+          isMargin });
+      }
+    }
+
+    return legs;
+  }
+
+  // ----------------------------------------------------------
+  // PARSE BaoCaoLaiLo.xls (derivatives)
+  // Structure confirmed (cols):
+  //   0=MaHD  1=TongKL(neg=SHORT,pos=LONG)  2=GiaDongTB  3=TongGiaTriDong  4=GiaMoTB  5=TongGiaTriMo  6=LaiLoThucHien
+  // Summary rows: col0=VN30Fxxx with aggregated data
+  // Daily rows: col0=date (DD/MM/YYYY)
+  // ----------------------------------------------------------
+  async function parseBaoCaoLaiLo(file) {
+    const tables = await parseFptsXls(file);
+    const contracts = [];
+    let currentContract = null;
+
+    for (const rows of tables) {
+      for (const row of rows) {
+        const col0 = (row[0] || '').trim();
+
+        // Contract summary row
+        if (col0.toUpperCase().startsWith('VN30F') && col0.length <= 12) {
+          const contract  = col0.toUpperCase();
+          const totalKL   = parseVND(row[1]);   // total qty (neg=SHORT)
+          const closePriceTB = parseVND(row[2]);
+          const openPriceTB  = parseVND(row[4]);
+          const totalPnL  = parseVND(row[6]);   // VND, already in dong
+
+          currentContract = {
+            id: Date.now() + Math.random(),
+            contract,
+            direction: (totalKL || 0) < 0 ? 'SHORT' : 'LONG',
+            qty: Math.abs(totalKL || 0),
+            entryPrice: openPriceTB  || 0,
+            exitPrice:  closePriceTB || 0,
+            pnl: totalPnL || 0,
+            openDate: null,
+            closeDate: null,
+            note: 'Imported from BaoCaoLaiLo',
+          };
+          contracts.push(currentContract);
+          continue;
+        }
+
+        // Daily session row under current contract
+        if (currentContract) {
+          const dateMatch = col0.match(/^(\d{2})[\/-](\d{2})[\/-](\d{4})$/);
+          if (dateMatch) {
+            const date = `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}`;
+            if (!currentContract.closeDate) currentContract.closeDate = date;
+            currentContract.openDate = date; // last date = earliest = open date
+          }
+        }
+
+        // "Tổng" row = end of all contracts
+        if (col0.includes('Tổng') || col0.includes('Tong')) currentContract = null;
+      }
+    }
+
+    return contracts;
+  }
+
+  // ----------------------------------------------------------
+  // IMPORT LichSuKhopLenh into positions
+  // ----------------------------------------------------------
+  function importLegsIntoPositions(parsedLegs) {
+    const positionsByTicker = {};
+    const running = {};
+
+    for (const leg of parsedLegs.sort((a, b) => a.date.localeCompare(b.date))) {
+      if (!positionsByTicker[leg.ticker]) {
+        positionsByTicker[leg.ticker] = [];
+        running[leg.ticker] = { qty: 0, posIdx: -1 };
+      }
+      const r = running[leg.ticker];
+
+      if (leg.type === 'BUY' && r.qty === 0) {
+        positionsByTicker[leg.ticker].push({ openDate: leg.date, legs: [] });
+        r.posIdx = positionsByTicker[leg.ticker].length - 1;
+      }
+
+      if (r.posIdx < 0) continue;
+
+      positionsByTicker[leg.ticker][r.posIdx].legs.push(leg);
+
+      if (leg.type === 'BUY')  r.qty += leg.qty;
+      if (leg.type === 'SELL') r.qty = Math.max(0, r.qty - leg.qty);
+    }
+
+    const result = [];
+    for (const [ticker, posArr] of Object.entries(positionsByTicker)) {
+      for (let i = 0; i < posArr.length; i++) {
+        const p = posArr[i];
+        const existingId = DATA.makePositionId(p.openDate, ticker);
+        const existing = DATA.getPosition(existingId);
+
+        if (existing) {
+          let added = 0;
+          for (const leg of p.legs) {
+            const dup = existing.legs.some(l =>
+              l.date === leg.date && l.type === leg.type &&
+              Math.abs(l.qty - leg.qty) < 1 && Math.abs(l.price - leg.price) < 1
+            );
+            if (!dup) { existing.legs.push(DATA.newLeg(leg)); added++; }
+          }
+          if (added > 0) DATA.savePosition(existing);
+          result.push({ position: existing, isNew: false, legsAdded: added });
+        } else {
+          const pos = DATA.newPosition({
+            id: existingId, ticker, openDate: p.openDate,
+            notes: `Imported from FPTS${posArr.length > 1 ? ' #'+(i+1) : ''}`,
+          });
+          pos.legs = p.legs.map(l => DATA.newLeg({
+            date: l.date, type: l.type, qty: l.qty, price: l.price,
+            fee: l.fee, isMargin: l.isMargin,
+          }));
+          DATA.recomputeLegs(pos);
+          const last = pos.legs[pos.legs.length - 1];
+          if (last && last.qtyAfter <= 0) {
+            pos.status = 'CLOSED';
+            pos.closeDate = last.date;
+          }
+          DATA.savePosition(pos);
+          result.push({ position: pos, isNew: true, legsAdded: pos.legs.length });
+        }
+      }
+    }
+    return result;
+  }
+
+  // ----------------------------------------------------------
+  function parseVND(str) {
+    if (str == null || str === '') return null;
+    const s = String(str).replace(/[,\.\s]/g, '').replace(/[đ₫%]/g, '');
+    const n = parseFloat(s);
+    return isNaN(n) ? null : n;
+  }
+
+  return { parseBaoCaoTaiSan, parseLichSuKhopLenh, parseBaoCaoLaiLo, importLegsIntoPositions };
+})();
+
+
+// === modals.js ===
+// ============================================================
+// MODALS.JS
+// ============================================================
+
+const MODALS = (() => {
+
+  const D = DATA;
+  const f = DATA.fmt;
+
+  function el(id) { return document.getElementById(id); }
+  function val(id) { return (el(id) || {}).value || ''; }
+  function setVal(id, v) { if (el(id)) el(id).value = v ?? ''; }
+  function today() { return new Date().toISOString().split('T')[0]; }
+
+  function openModal(id)  { const m = el(id); if (m) { m.classList.add('open'); } }
+  function closeModal(id) { const m = el(id); if (m) { m.classList.remove('open'); } }
+  function closeAll()     { document.querySelectorAll('.modal-overlay.open').forEach(m => m.classList.remove('open')); }
+
+  // click outside to close
+  document.addEventListener('click', e => {
+    if (e.target.classList.contains('modal-overlay')) closeAll();
+  });
+
+  // ----------------------------------------------------------
+  // INJECT MODAL HTML (called once on init)
+  // ----------------------------------------------------------
+  function init() {
+    const container = el('modals-container');
+    container.innerHTML = addPositionHTML() + addLegHTML() + closePositionHTML() + addNavHTML() + addMarginHTML() + addDerivHTML() + addCashFlowHTML() + updateSlHTML();
+  }
+
+  // ----------------------------------------------------------
+  // ADD POSITION MODAL
+  // ----------------------------------------------------------
+  function addPositionHTML() {
+    const sectorOpts = D.SECTORS.map(s => `<option>${s}</option>`).join('');
+    const setupOpts  = D.SETUP_TYPES.map(s => `<option value="${s}">${s.replace(/_/g,' ')}</option>`).join('');
+    const stockOpts  = D.STOCK_TYPES.map(s => `<option value="${s}">${s}</option>`).join('');
+    const posOpts    = D.POSITION_TYPES.map(s => `<option value="${s}">${s.replace(/_/g,' ')}</option>`).join('');
+    const regOpts    = D.MARKET_REGIMES.map(s => `<option value="${s}">${s.replace(/_/g,' ')}</option>`).join('');
+    return `
+<div class="modal-overlay" id="modal-add-position">
+ <div class="modal modal-lg">
+  <div class="modal-hd">
+   <div class="modal-title">Open New Position</div>
+   <button class="modal-close" onclick="MODALS.closeModal('modal-add-position')">×</button>
+  </div>
+  <div class="section-div">Identity</div>
+  <div class="form-grid">
+   <div class="form-group"><label class="form-label">Mã CK *</label><input id="ap-ticker" placeholder="FPT" style="text-transform:uppercase"></div>
+   <div class="form-group"><label class="form-label">Ngày mở *</label><input type="date" id="ap-open-date"></div>
+   <div class="form-group"><label class="form-label">Sector</label><select id="ap-sector">${sectorOpts}</select></div>
+   <div class="form-group"><label class="form-label">Position Type</label><select id="ap-pos-type">${posOpts}</select></div>
+   <div class="form-group"><label class="form-label">Market Regime</label><select id="ap-regime">${regOpts}</select></div>
+   <div class="form-group"><label class="form-label">Grade (1–5)</label><select id="ap-grade"><option value="5">⭐⭐⭐⭐⭐ A+ Perfect</option><option value="4">⭐⭐⭐⭐ A Tốt</option><option value="3" selected>⭐⭐⭐ B TB</option><option value="2">⭐⭐ C Kém</option><option value="1">⭐ D Vi phạm</option></select></div>
+  </div>
+  <div class="section-div">Entry Criteria</div>
+  <div class="form-grid3">
+   <div class="form-group"><label class="form-label">Buying Type</label><select id="ap-buying-type">${setupOpts}</select></div>
+   <div class="form-group"><label class="form-label">Stock Type</label><select id="ap-stock-type">${stockOpts}</select></div>
+   <div class="form-group"><label class="form-label">PB Buy</label><input type="number" id="ap-pb-buy" step="0.01" placeholder="1.5"></div>
+   <div class="form-group"><label class="form-label">PE Buy</label><input type="number" id="ap-pe-buy" step="0.1" placeholder="12.5"></div>
+   <div class="form-group"><label class="form-label">RS 52W @ buy (Minervini %)</label><input type="number" id="ap-rs52w" step="0.1" placeholder="-15"></div>
+   <div class="form-group"><label class="form-label">ROE (%)</label><input type="number" id="ap-roe" step="0.1" placeholder="18"></div>
+   <div class="form-group"><label class="form-label">ROA (%)</label><input type="number" id="ap-roa" step="0.1" placeholder="3.2"></div>
+   <div class="form-group"><label class="form-label">Avg Vol 2W (000 CP)</label><input type="number" id="ap-avgvol" placeholder="5000"></div>
+   <div class="form-group"><label class="form-label">Stoploss (đ)</label><input type="number" id="ap-sl" placeholder="24000"></div>
+  </div>
+  <div class="form-group full mt-12"><label class="form-label">Thesis / Setup snapshot</label><textarea id="ap-thesis" placeholder="EMA cross daily + volume surge + RS > 80 + market bullish..."></textarea></div>
+  <div class="form-group mt-8"><label class="form-label">Notes</label><input id="ap-notes" placeholder="Ghi chú thêm..."></div>
+  <div id="ap-error" class="alert alert-danger mt-8" style="display:none"><span class="alert-icon">⚠</span><div class="alert-body" id="ap-error-text"></div></div>
+  <div class="modal-footer">
+   <button class="btn btn-secondary" onclick="MODALS.closeModal('modal-add-position')">Hủy</button>
+   <button class="btn btn-primary" onclick="MODALS.savePosition()">Lưu & mở position →</button>
+  </div>
+ </div>
+</div>`;
+  }
+
+  function openAddPosition(prefill = {}) {
+    setVal('ap-ticker', prefill.ticker || '');
+    setVal('ap-open-date', prefill.date || today());
+    if (el('ap-error')) el('ap-error').style.display = 'none';
+    openModal('modal-add-position');
+  }
+
+  function savePosition() {
+    const ticker = val('ap-ticker').trim().toUpperCase();
+    const openDate = val('ap-open-date');
+    if (!ticker || !openDate) { showErr('ap-error', 'ap-error-text', 'Cần nhập Mã CK và Ngày mở'); return; }
+
+    const id = D.makePositionId(openDate, ticker);
+    if (D.getPosition(id)) {
+      showErr('ap-error', 'ap-error-text', `Position ${id} đã tồn tại. Dùng "Add Leg" để thêm lệnh.`); return;
+    }
+
+    const pos = D.newPosition({
+      id, ticker, openDate,
+      sector:       val('ap-sector'),
+      positionType: val('ap-pos-type'),
+      marketRegime: val('ap-regime'),
+      buyingType:   val('ap-buying-type'),
+      stockType:    val('ap-stock-type'),
+      grade:        parseInt(val('ap-grade')) || 3,
+      pbBuy:        floatOrNull('ap-pb-buy'),
+      peBuy:        floatOrNull('ap-pe-buy'),
+      rs52wBuy:     floatOrNull('ap-rs52w'),
+      roe:          floatOrNull('ap-roe'),
+      roa:          floatOrNull('ap-roa'),
+      avgVol2w:     floatOrNull('ap-avgvol'),
+      stoplossCurrent: floatOrNull('ap-sl'),
+      thesis:       val('ap-thesis'),
+      notes:        val('ap-notes'),
+    });
+
+    if (pos.stoplossCurrent) {
+      pos.stoplossHistory.push({ date: openDate, price: pos.stoplossCurrent, reason: 'Initial SL' });
+    }
+
+    D.savePosition(pos);
+    closeModal('modal-add-position');
+    APP.renderCurrentPage();
+
+    // Prompt to add first leg
+    setTimeout(() => openAddLeg(id), 200);
+  }
+
+  // ----------------------------------------------------------
+  // ADD LEG MODAL
+  // ----------------------------------------------------------
+  let _addLegPositionId = null;
+
+  function addLegHTML() {
+    return `
+<div class="modal-overlay" id="modal-add-leg">
+ <div class="modal">
+  <div class="modal-hd">
+   <div class="modal-title">Add Leg — <span id="al-pos-title"></span></div>
+   <button class="modal-close" onclick="MODALS.closeModal('modal-add-leg')">×</button>
+  </div>
+  <div class="subtabs" style="margin-bottom:14px">
+   <button class="subtab active" onclick="MODALS.setLegType('BUY',this)">Mua</button>
+   <button class="subtab" onclick="MODALS.setLegType('SELL',this)">Bán</button>
+   <button class="subtab" onclick="MODALS.setLegType('DIV_CASH',this)">Cổ tức tiền</button>
+   <button class="subtab" onclick="MODALS.setLegType('DIV_STOCK',this)">Cổ tức CP</button>
+   <button class="subtab" onclick="MODALS.setLegType('RIGHTS',this)">Quyền mua</button>
+  </div>
+  <input type="hidden" id="al-type" value="BUY">
+  <div class="form-grid">
+   <div class="form-group"><label class="form-label">Ngày khớp *</label><input type="date" id="al-date"></div>
+   <div class="form-group al-qty-group"><label class="form-label" id="al-qty-label">Khối lượng *</label><input type="number" id="al-qty" placeholder="1000" oninput="MODALS.updateLegCalc()"></div>
+   <div class="form-group al-price-group"><label class="form-label" id="al-price-label">Giá khớp (đ) *</label><input type="number" id="al-price" placeholder="25000" oninput="MODALS.updateLegCalc()"></div>
+   <div class="form-group al-margin-group"><label class="form-label">Margin?</label><select id="al-is-margin"><option value="0">Không</option><option value="1">Có (50%)</option></select></div>
+   <!-- RIGHTS extra -->
+   <div class="form-group al-rights-price" style="display:none"><label class="form-label">Giá phát hành (đ)</label><input type="number" id="al-rights-price" placeholder="10000"></div>
+   <div class="form-group al-rights-deadline" style="display:none"><label class="form-label">Deadline nộp tiền</label><input type="date" id="al-rights-deadline"></div>
+   <!-- DIV_CASH -->
+   <div class="form-group al-divcash" style="display:none;grid-column:1/-1"><label class="form-label">Tiền cổ tức thực nhận (đ, sau 5% TNCN)</label><input type="number" id="al-div-cash-amt" placeholder="9500000" oninput="MODALS.updateLegCalc()"></div>
+   <div class="form-group full"><label class="form-label">Ghi chú</label><input id="al-note" placeholder="scale in / partial exit / thoát theo kế hoạch..."></div>
+  </div>
+  <div class="computed-row mt-8" id="al-computed" style="display:none">
+   <div><div class="computed-item-label">Phí 0.15%</div><div class="computed-item-value" id="al-c-fee">—</div></div>
+   <div><div class="computed-item-label">Thuế bán 0.1%</div><div class="computed-item-value" id="al-c-tax">—</div></div>
+   <div><div class="computed-item-label">Avg cost sau</div><div class="computed-item-value" id="al-c-avg" style="color:var(--blue)">—</div></div>
+   <div><div class="computed-item-label">KL sau</div><div class="computed-item-value" id="al-c-qty">—</div></div>
+  </div>
+  <div class="modal-footer">
+   <button class="btn btn-secondary" onclick="MODALS.closeModal('modal-add-leg')">Hủy</button>
+   <button class="btn btn-primary" onclick="MODALS.saveLeg()">Lưu leg →</button>
+  </div>
+ </div>
+</div>`;
+  }
+
+  function openAddLeg(positionId) {
+    _addLegPositionId = positionId;
+    const pos = D.getPosition(positionId);
+    if (!pos) return;
+    el('al-pos-title').textContent = pos.ticker + ' — ' + positionId;
+    setVal('al-date', today());
+    setVal('al-qty', '');
+    setVal('al-price', '');
+    setVal('al-note', '');
+    setVal('al-type', 'BUY');
+    setLegType('BUY', document.querySelector('#modal-add-leg .subtab'));
+    el('al-computed').style.display = 'none';
+    openModal('modal-add-leg');
+  }
+
+  function setLegType(type, btn) {
+    setVal('al-type', type);
+    document.querySelectorAll('#modal-add-leg .subtab').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+
+    const show = sel => document.querySelectorAll(sel).forEach(e => e.style.display = '');
+    const hide = sel => document.querySelectorAll(sel).forEach(e => e.style.display = 'none');
+
+    // Reset
+    show('.al-qty-group,.al-price-group,.al-margin-group');
+    hide('.al-rights-price,.al-rights-deadline,.al-divcash');
+
+    if (type === 'DIV_CASH') {
+      hide('.al-qty-group,.al-price-group,.al-margin-group');
+      show('.al-divcash');
+      el('al-computed').style.display = 'none';
+    } else if (type === 'DIV_STOCK') {
+      el('al-qty-label').textContent = 'Số CP thưởng nhận *';
+      el('al-price-label').textContent = 'Giá CP lúc nhận (đ, tuỳ chọn)';
+      hide('.al-margin-group');
+    } else if (type === 'RIGHTS') {
+      el('al-qty-label').textContent = 'Số CP được quyền mua *';
+      el('al-price-label').textContent = 'Giá hiện tại (đ)';
+      show('.al-rights-price,.al-rights-deadline');
+      hide('.al-margin-group');
+    } else {
+      el('al-qty-label').textContent = 'Khối lượng *';
+      el('al-price-label').textContent = 'Giá khớp (đ) *';
+    }
+    updateLegCalc();
+  }
+
+  function updateLegCalc() {
+    const type = val('al-type');
+    if (['DIV_CASH','DIV_STOCK','RIGHTS'].includes(type)) {
+      el('al-computed').style.display = 'none';
+      return;
+    }
+    const qty   = parseFloat(val('al-qty'))   || 0;
+    const price = parseFloat(val('al-price')) || 0;
+    if (!qty || !price) { el('al-computed').style.display = 'none'; return; }
+
+    const pos = D.getPosition(_addLegPositionId);
+    const lastLeg = pos && pos.legs.length > 0 ? pos.legs[pos.legs.length - 1] : null;
+    const runningQty  = lastLeg ? lastLeg.qtyAfter  : 0;
+    const runningCost = lastLeg ? runningQty * lastLeg.avgCostAfter : 0;
+
+    const tempLeg = D.newLeg({ type, qty, price });
+    const calc = D.calcLeg(tempLeg, runningQty, runningCost);
+
+    el('al-computed').style.display = '';
+    el('al-c-fee').textContent = (calc.fee / 1000).toFixed(0) + 'K';
+    el('al-c-tax').textContent = type === 'SELL' ? (calc.tax / 1000).toFixed(0) + 'K' : '—';
+    el('al-c-avg').textContent = calc.avgCostAfter.toLocaleString('vi-VN') + 'đ';
+    el('al-c-qty').textContent = calc.qtyAfter.toLocaleString('vi-VN');
+  }
+
+  function saveLeg() {
+    const type = val('al-type');
+    const date = val('al-date');
+    if (!date) { alert('Cần nhập ngày'); return; }
+
+    let legData = { type, date, note: val('al-note'), isMargin: val('al-is-margin') === '1' };
+
+    if (type === 'DIV_CASH') {
+      legData.price = parseFloat(val('al-div-cash-amt')) || 0;
+      legData.qty = 0;
+    } else if (type === 'RIGHTS') {
+      legData.qty   = parseFloat(val('al-qty'))   || 0;
+      legData.price = parseFloat(val('al-price'))  || 0;
+      legData.rightsPrice    = parseFloat(val('al-rights-price')) || null;
+      legData.rightsDeadline = val('al-rights-deadline');
+      legData.rightsPending  = true;
+    } else {
+      legData.qty   = parseFloat(val('al-qty'))   || 0;
+      legData.price = parseFloat(val('al-price'))  || 0;
+    }
+
+    if ((type === 'BUY' || type === 'SELL') && (!legData.qty || !legData.price)) {
+      alert('Cần nhập KL và giá'); return;
+    }
+
+    D.addLegToPosition(_addLegPositionId, legData);
+    closeModal('modal-add-leg');
+    APP.renderCurrentPage();
+  }
+
+  // ----------------------------------------------------------
+  // CLOSE POSITION MODAL
+  // ----------------------------------------------------------
+  let _closePosId = null;
+
+  function closePositionHTML() {
+    const reasons = D.CLOSE_REASONS.map(r => `<option value="${r}">${r.replace(/_/g,' ')}</option>`).join('');
+    return `
+<div class="modal-overlay" id="modal-close-pos">
+ <div class="modal modal-sm">
+  <div class="modal-hd">
+   <div class="modal-title">Close Position — <span id="cp-title"></span></div>
+   <button class="modal-close" onclick="MODALS.closeModal('modal-close-pos')">×</button>
+  </div>
+  <div class="form-group mb-12"><label class="form-label">Close Reason *</label><select id="cp-reason">${reasons}</select></div>
+  <div class="form-grid">
+   <div class="form-group"><label class="form-label">PB Sell</label><input type="number" id="cp-pb-sell" step="0.01"></div>
+   <div class="form-group"><label class="form-label">PE Sell</label><input type="number" id="cp-pe-sell" step="0.1"></div>
+   <div class="form-group full"><label class="form-label">RS 52W @ last sold (Minervini %)</label><input type="number" id="cp-rs52w-sell" step="0.1"></div>
+  </div>
+  <div class="form-group mt-8"><label class="form-label">Close Grade</label><select id="cp-close-grade"><option value="5">⭐⭐⭐⭐⭐ Target đạt</option><option value="4">⭐⭐⭐⭐ Tốt</option><option value="3" selected>⭐⭐⭐ Ổn</option><option value="2">⭐⭐ Thoát sớm/SL</option><option value="1">⭐ Cắt lỗ trễ</option></select></div>
+  <div class="form-group mt-8"><label class="form-label">Bài học / Close notes</label><textarea id="cp-notes" placeholder="Lý do thoát, bài học rút ra..."></textarea></div>
+  <div class="modal-footer">
+   <button class="btn btn-secondary" onclick="MODALS.closeModal('modal-close-pos')">Hủy</button>
+   <button class="btn btn-primary" onclick="MODALS.confirmClosePosition()">Xác nhận đóng →</button>
+  </div>
+ </div>
+</div>`;
+  }
+
+  function openClosePosition(posId) {
+    _closePosId = posId;
+    const pos = D.getPosition(posId);
+    if (!pos) return;
+    el('cp-title').textContent = pos.ticker + ' — ' + posId;
+    openModal('modal-close-pos');
+  }
+
+  function confirmClosePosition() {
+    const pos = D.getPosition(_closePosId);
+    if (!pos) return;
+    pos.closeReason  = val('cp-reason');
+    pos.pbSell       = floatOrNull('cp-pb-sell');
+    pos.peSell       = floatOrNull('cp-pe-sell');
+    pos.rs52wSell    = floatOrNull('cp-rs52w-sell');
+    pos.closeGrade   = parseInt(val('cp-close-grade')) || 3;
+    pos.closeNotes   = val('cp-notes');
+    pos.status       = 'CLOSED';
+    if (!pos.closeDate) pos.closeDate = today();
+    // Update ID to closed format
+    const s = D.positionSummary(pos);
+    pos.closedId = D.closePositionId(pos, pos.closeDate, s.netPnL > 0);
+    D.savePosition(pos);
+    closeModal('modal-close-pos');
+    APP.renderCurrentPage();
+  }
+
+  // ----------------------------------------------------------
+  // ADD NAV SNAPSHOT MODAL
+  // ----------------------------------------------------------
+  function addNavHTML() {
+    return `
+<div class="modal-overlay" id="modal-add-nav">
+ <div class="modal modal-sm">
+  <div class="modal-hd"><div class="modal-title" id="nav-modal-title">Cập nhật NAV</div><button class="modal-close" onclick="MODALS.closeModal('modal-add-nav')">×</button></div>
+  <div class="form-group mb-12"><label class="form-label">Ngày</label><input type="date" id="nav-date"></div>
+  <div class="form-group mb-12"><label class="form-label">NAV (triệu VNĐ)</label><input type="number" id="nav-val" step="0.1" placeholder="1457"></div>
+  <div class="form-group mb-12"><label class="form-label">Label (tuỳ chọn)</label><input id="nav-label" placeholder="VD: 2025-start"></div>
+  <div class="modal-footer">
+   <button class="btn btn-secondary" onclick="MODALS.closeModal('modal-add-nav')">Hủy</button>
+   <button class="btn btn-primary" onclick="MODALS.saveNav()">Lưu →</button>
+  </div>
+ </div>
+</div>`;
+  }
+
+  function openAddNav(label = '') {
+    setVal('nav-date', today());
+    setVal('nav-val', '');
+    setVal('nav-label', label);
+    if (label.includes('start')) el('nav-modal-title').textContent = 'NAV đầu năm ' + new Date().getFullYear();
+    else el('nav-modal-title').textContent = 'Cập nhật NAV';
+    openModal('modal-add-nav');
+  }
+
+  function saveNav() {
+    const date = val('nav-date');
+    const navM = parseFloat(val('nav-val'));
+    if (!date || !navM) { alert('Cần nhập ngày và NAV'); return; }
+    D.upsertNavSnapshot(date, navM, val('nav-label') || null);
+    closeModal('modal-add-nav');
+    APP.renderCurrentPage();
+  }
+
+  // ----------------------------------------------------------
+  // ADD MARGIN ENTRY MODAL
+  // ----------------------------------------------------------
+  function addMarginHTML() {
+    return `
+<div class="modal-overlay" id="modal-add-margin">
+ <div class="modal modal-sm">
+  <div class="modal-hd"><div class="modal-title">Cập nhật Margin</div><button class="modal-close" onclick="MODALS.closeModal('modal-add-margin')">×</button></div>
+  <div class="form-group mb-12"><label class="form-label">Ngày</label><input type="date" id="mg-date"></div>
+  <div class="form-group mb-12"><label class="form-label">Dư nợ hiện tại (triệu VNĐ)</label><input type="number" id="mg-balance" step="0.1" placeholder="200.5"><span class="form-hint">Copy từ BaoCaoTaiSan — mục "Dư nợ vay ký quỹ"</span></div>
+  <div class="form-group mb-12"><label class="form-label">Ghi chú</label><input id="mg-note" placeholder="Upload weekly / Ngày 25 cộng lãi..."></div>
+  <div id="mg-interest-preview" class="computed-row" style="display:none;margin-bottom:12px">
+   <div><div class="computed-item-label">Dư nợ kỳ trước</div><div class="computed-item-value" id="mg-prev-bal">—</div></div>
+   <div><div class="computed-item-label">Lãi tháng (delta)</div><div class="computed-item-value text-neg" id="mg-interest-delta">—</div></div>
+  </div>
+  <div class="modal-footer">
+   <button class="btn btn-secondary" onclick="MODALS.closeModal('modal-add-margin')">Hủy</button>
+   <button class="btn btn-primary" onclick="MODALS.saveMargin()">Lưu →</button>
+  </div>
+ </div>
+</div>`;
+  }
+
+  function openAddMargin() {
+    setVal('mg-date', today());
+    setVal('mg-balance', '');
+    setVal('mg-note', '');
+    // Show previous balance for comparison
+    const log = (DATA.db().marginLog || []).sort((a,b) => b.date.localeCompare(a.date));
+    if (log.length > 0) {
+      el('mg-interest-preview').style.display = '';
+      el('mg-prev-bal').textContent = log[0].balanceM.toFixed(1) + 'M';
+    } else {
+      el('mg-interest-preview').style.display = 'none';
+    }
+    el('mg-balance').addEventListener('input', () => {
+      const newBal = parseFloat(el('mg-balance').value) || 0;
+      if (log.length > 0 && newBal > log[0].balanceM) {
+        el('mg-interest-delta').textContent = '−' + (newBal - log[0].balanceM).toFixed(2) + 'M';
+      }
+    });
+    openModal('modal-add-margin');
+  }
+
+  function saveMargin() {
+    const date     = val('mg-date');
+    const balanceM = parseFloat(val('mg-balance'));
+    if (!date || !balanceM) { alert('Cần nhập ngày và dư nợ'); return; }
+
+    // Detect interest
+    const log = (DATA.db().marginLog || []).sort((a,b) => b.date.localeCompare(a.date));
+    let interestM = 0;
+    let auto = false;
+    if (log.length > 0 && balanceM > log[0].balanceM) {
+      interestM = balanceM - log[0].balanceM;
+      auto = true;
+    }
+
+    D.addMarginEntry({ date, balanceM, note: val('mg-note'), interestM, auto });
+    closeModal('modal-add-margin');
+    APP.renderCurrentPage();
+  }
+
+  // ----------------------------------------------------------
+  // ADD DERIVATIVE MODAL
+  // ----------------------------------------------------------
+  function addDerivHTML() {
+    const dirs = D.DERIV_DIRECTIONS.map(d => `<option value="${d}">${d}</option>`).join('');
+    return `
+<div class="modal-overlay" id="modal-add-deriv">
+ <div class="modal modal-sm">
+  <div class="modal-hd"><div class="modal-title">Add Derivative</div><button class="modal-close" onclick="MODALS.closeModal('modal-add-deriv')">×</button></div>
+  <div class="form-grid">
+   <div class="form-group"><label class="form-label">Mã HĐ</label><input id="dv-contract" placeholder="VN30F2509"></div>
+   <div class="form-group"><label class="form-label">Hướng</label><select id="dv-dir">${dirs}</select></div>
+   <div class="form-group"><label class="form-label">Ngày vào</label><input type="date" id="dv-open"></div>
+   <div class="form-group"><label class="form-label">Ngày ra</label><input type="date" id="dv-close"></div>
+   <div class="form-group"><label class="form-label">Giá vào TB</label><input type="number" id="dv-entry" placeholder="1250"></div>
+   <div class="form-group"><label class="form-label">Giá ra TB</label><input type="number" id="dv-exit" placeholder="1280"></div>
+   <div class="form-group"><label class="form-label">Số HĐ</label><input type="number" id="dv-qty" placeholder="5"></div>
+   <div class="form-group"><label class="form-label">P&L (VNĐ)</label><input type="number" id="dv-pnl" placeholder="15000000"><span class="form-hint">Copy từ BaoCaoLaiLo, hoặc tự nhập</span></div>
+   <div class="form-group full"><label class="form-label">Ghi chú</label><input id="dv-note"></div>
+  </div>
+  <div class="modal-footer">
+   <button class="btn btn-secondary" onclick="MODALS.closeModal('modal-add-deriv')">Hủy</button>
+   <button class="btn btn-primary" onclick="MODALS.saveDeriv()">Lưu →</button>
+  </div>
+ </div>
+</div>`;
+  }
+
+  function openAddDeriv() { setVal('dv-open', today()); openModal('modal-add-deriv'); }
+
+  function saveDeriv() {
+    D.saveDerivative({
+      id: Date.now(),
+      contract:  val('dv-contract').toUpperCase(),
+      direction: val('dv-dir'),
+      openDate:  val('dv-open'),
+      closeDate: val('dv-close'),
+      entryPrice:parseFloat(val('dv-entry')) || 0,
+      exitPrice: parseFloat(val('dv-exit'))  || 0,
+      qty:       parseInt(val('dv-qty'))     || 1,
+      pnl:       parseFloat(val('dv-pnl'))   || 0,
+      note:      val('dv-note'),
+    });
+    closeModal('modal-add-deriv');
+    APP.renderCurrentPage();
+  }
+
+  // ----------------------------------------------------------
+  // CASH FLOW MODAL
+  // ----------------------------------------------------------
+  function addCashFlowHTML() {
+    const types = D.CASH_FLOW_TYPES.map(t => `<option value="${t}">${t.replace(/_/g,' ')}</option>`).join('');
+    return `
+<div class="modal-overlay" id="modal-add-cf">
+ <div class="modal modal-sm">
+  <div class="modal-hd"><div class="modal-title">Add Cash Flow</div><button class="modal-close" onclick="MODALS.closeModal('modal-add-cf')">×</button></div>
+  <div class="form-group mb-12"><label class="form-label">Loại</label><select id="cf-type">${types}</select></div>
+  <div class="form-group mb-12"><label class="form-label">Ngày</label><input type="date" id="cf-date"></div>
+  <div class="form-group mb-12"><label class="form-label">Số tiền (triệu VNĐ)</label><input type="number" id="cf-amount" step="0.1" placeholder="50"></div>
+  <div class="form-group mb-12"><label class="form-label">Ghi chú</label><input id="cf-note"></div>
+  <div class="modal-footer">
+   <button class="btn btn-secondary" onclick="MODALS.closeModal('modal-add-cf')">Hủy</button>
+   <button class="btn btn-primary" onclick="MODALS.saveCashFlow()">Lưu →</button>
+  </div>
+ </div>
+</div>`;
+  }
+
+  function openAddCashFlow() { setVal('cf-date', today()); openModal('modal-add-cf'); }
+
+  function saveCashFlow() {
+    const date = val('cf-date'), amountM = parseFloat(val('cf-amount'));
+    if (!date || !amountM) { alert('Cần nhập đầy đủ'); return; }
+    D.addCashFlow({ date, type: val('cf-type'), amountM, note: val('cf-note') });
+    closeModal('modal-add-cf');
+    APP.renderCurrentPage();
+  }
+
+  // ----------------------------------------------------------
+  // UPDATE SL MODAL
+  // ----------------------------------------------------------
+  let _slPosId = null;
+
+  function updateSlHTML() {
+    return `
+<div class="modal-overlay" id="modal-update-sl">
+ <div class="modal modal-sm">
+  <div class="modal-hd"><div class="modal-title">Cập nhật Stoploss — <span id="sl-pos-title"></span></div><button class="modal-close" onclick="MODALS.closeModal('modal-update-sl')">×</button></div>
+  <div class="form-group mb-12"><label class="form-label">SL hiện tại</label><div id="sl-current" class="text-mono" style="padding:8px 0"></div></div>
+  <div class="form-group mb-12"><label class="form-label">SL mới (đ) *</label><input type="number" id="sl-new" placeholder="22000"></div>
+  <div class="form-group mb-12"><label class="form-label">Lý do</label><input id="sl-reason" placeholder="Trailing / Adj after corp action / Manual..."></div>
+  <div class="modal-footer">
+   <button class="btn btn-secondary" onclick="MODALS.closeModal('modal-update-sl')">Hủy</button>
+   <button class="btn btn-primary" onclick="MODALS.saveSl()">Cập nhật →</button>
+  </div>
+ </div>
+</div>`;
+  }
+
+  function openUpdateSl(posId) {
+    _slPosId = posId;
+    const pos = D.getPosition(posId);
+    if (!pos) return;
+    el('sl-pos-title').textContent = pos.ticker;
+    el('sl-current').textContent = pos.stoplossCurrent ? pos.stoplossCurrent.toLocaleString('vi-VN') + 'đ' : 'Chưa có';
+    setVal('sl-new', pos.stoplossCurrent || '');
+    setVal('sl-reason', '');
+    openModal('modal-update-sl');
+  }
+
+  function saveSl() {
+    const pos = D.getPosition(_slPosId);
+    if (!pos) return;
+    const newSl = parseFloat(val('sl-new'));
+    if (!newSl) { alert('Cần nhập giá SL'); return; }
+    if (!pos.stoplossHistory) pos.stoplossHistory = [];
+    pos.stoplossHistory.push({ date: today(), price: newSl, reason: val('sl-reason') || 'Manual update' });
+    pos.stoplossCurrent = newSl;
+    D.savePosition(pos);
+    closeModal('modal-update-sl');
+    APP.renderCurrentPage();
+  }
+
+  // ----------------------------------------------------------
+  // HELPERS
+  // ----------------------------------------------------------
+  function floatOrNull(id) { const v = parseFloat(val(id)); return isNaN(v) ? null : v; }
+  function showErr(errId, textId, msg) {
+    el(errId).style.display = 'flex';
+    el(textId).textContent = msg;
+  }
+
+  // ----------------------------------------------------------
+  // EXPORT
+  // ----------------------------------------------------------
+  return {
+    init,
+    openModal, closeModal, closeAll,
+    openAddPosition, savePosition,
+    openAddLeg, setLegType, updateLegCalc, saveLeg,
+    openClosePosition, confirmClosePosition,
+    openAddNav, saveNav,
+    openAddMargin, saveMargin,
+    openAddDeriv, saveDeriv,
+    openAddCashFlow, saveCashFlow,
+    openUpdateSl, saveSl,
+  };
+})();
+
+
+// === dashboard.js ===
+// ============================================================
+// DASHBOARD.JS
+// ============================================================
+
+const DASHBOARD = (() => {
+  const f = DATA.fmt;
+
+  function render() {
+    const page = document.getElementById('page-dashboard');
+    const stats = DATA.dashboardStats();
+    const positions = DATA.getPositions('active');
+    const alerts = buildAlerts(positions);
+
+    page.innerHTML = `
+      ${alerts.length ? `<div class="mb-16">${alerts.join('')}</div>` : ''}
+      ${renderMetrics(stats)}
+      <div class="grid-main">
+        <div>
+          ${renderSlDistanceBar(positions)}
+          ${renderOpenPositionsTable(positions)}
+        </div>
+        <div>
+          ${renderNavCard(stats)}
+          ${renderSectorCard(positions)}
+          ${renderMonthlyPnlCard()}
+        </div>
+      </div>`;
+  }
+
+  // ----------------------------------------------------------
+  // ALERTS
+  // ----------------------------------------------------------
+  function buildAlerts(positions) {
+    const alerts = [];
+    const today = new Date().toISOString().split('T')[0];
+
+    for (const pos of positions) {
+      // SL hit alerts
+      if (pos.status === 'STOPLOSS_ALERT' && pos.slHitDate) {
+        const days = Math.floor((new Date(today) - new Date(pos.slHitDate)) / 86400000);
+        const severity = days >= 3 ? 'danger' : days >= 2 ? 'warn' : 'info';
+        const msg = days >= 3 ? 'Cực kỳ nghiêm trọng — exit ngay lập tức' : days >= 2 ? 'Nghiêm trọng — vi phạm trading plan' : 'Cảnh báo — xem xét exit';
+        const s = DATA.positionSummary(pos);
+        alerts.push(`
+          <div class="alert alert-${severity}">
+            <span class="alert-icon">${days >= 3 ? '🔴' : days >= 2 ? '🟠' : '🟡'}</span>
+            <div class="alert-body">
+              <div class="alert-title">${pos.ticker} — Stoploss đã hit ${days} ngày trước</div>
+              <div class="alert-sub">SL: ${f.price(pos.stoplossCurrent)} · ${msg}${s ? ` · Lỗ thêm từ khi hit: ~${f.Msign(s.netPnL)}` : ''}</div>
+            </div>
+            <button class="btn btn-danger btn-sm" onclick="POSITIONS.openDetail('${pos.id}')">Xem →</button>
+          </div>`);
+      }
+
+      // Approaching SL (< 5%)
+      // (would need current price — skip if not available)
+
+      // Pending rights
+      for (const leg of pos.legs || []) {
+        if (leg.type === 'RIGHTS' && leg.rightsPending && !leg.rightsDeclined) {
+          const deadline = leg.rightsDeadline;
+          const daysLeft = deadline ? Math.ceil((new Date(deadline) - new Date()) / 86400000) : null;
+          alerts.push(`
+            <div class="alert alert-warn">
+              <span class="alert-icon">⚡</span>
+              <div class="alert-body">
+                <div class="alert-title">${pos.ticker} — Quyền mua chưa xử lý</div>
+                <div class="alert-sub">${leg.qty.toLocaleString()} CP · Giá: ${leg.rightsPrice ? f.price(leg.rightsPrice) : '—'}${daysLeft != null ? ` · Còn ${daysLeft} ngày` : ''}</div>
+              </div>
+              <button class="btn btn-secondary btn-sm" onclick="POSITIONS.openDetail('${pos.id}')">Xử lý →</button>
+            </div>`);
+        }
+      }
+
+      // SL needs adjustment after corp action
+      for (const leg of pos.legs || []) {
+        if (leg.type === 'DIV_STOCK' && leg._slAdjFactor && pos.stoplossCurrent) {
+          const suggested = DATA.suggestSlAfterDivStock(pos.stoplossCurrent, leg._slAdjFactor);
+          if (Math.abs(suggested - pos.stoplossCurrent) > 100) {
+            alerts.push(`
+              <div class="alert alert-info">
+                <span class="alert-icon">ℹ</span>
+                <div class="alert-body">
+                  <div class="alert-title">${pos.ticker} — SL cần điều chỉnh sau cổ tức CP</div>
+                  <div class="alert-sub">SL hiện tại: ${f.price(pos.stoplossCurrent)} → Đề xuất: ${f.price(suggested)}</div>
+                </div>
+                <button class="btn btn-secondary btn-sm" onclick="MODALS.openUpdateSl('${pos.id}')">Cập nhật →</button>
+              </div>`);
+          }
+        }
+      }
+    }
+
+    // Drawdown alerts
+    const stats = DATA.dashboardStats();
+    if (stats.drawdown <= -0.15) {
+      alerts.unshift(`<div class="alert alert-danger"><span class="alert-icon">⛔</span><div class="alert-body"><div class="alert-title">LEVEL 3 — Drawdown ${f.pctSign(stats.drawdown)} · Nghỉ 6 tuần</div><div class="alert-sub">Trading Plan: dừng giao dịch, nghỉ 6 tuần</div></div></div>`);
+    } else if (stats.drawdown <= -0.10) {
+      alerts.unshift(`<div class="alert alert-danger"><span class="alert-icon">🛑</span><div class="alert-body"><div class="alert-title">LEVEL 2 — Drawdown ${f.pctSign(stats.drawdown)} · Dừng tháng này</div><div class="alert-sub">Trading Plan: không giao dịch thêm tháng này</div></div></div>`);
+    } else if (stats.drawdown <= -0.07) {
+      alerts.unshift(`<div class="alert alert-warn"><span class="alert-icon">⚠</span><div class="alert-body"><div class="alert-title">LEVEL 1 — Drawdown ${f.pctSign(stats.drawdown)} · Cắt ½ position size</div><div class="alert-sub">Trading Plan: giảm position size xuống 50%</div></div></div>`);
+    }
+
+    return alerts;
+  }
+
+  // ----------------------------------------------------------
+  // METRICS ROW
+  // ----------------------------------------------------------
+  function renderMetrics(stats) {
+    const ytdStr = stats.ytd != null ? (stats.ytd >= 0 ? '↑ +' : '↓ ') + (stats.ytd * 100).toFixed(2) + '% YTD' : 'Chưa có NAV đầu năm';
+    const navStr = stats.navNow != null ? (stats.navNow / 1e6).toFixed(1) + 'M' : '—';
+    const monthPnlCls = stats.monthPnL > 0 ? 'pos' : stats.monthPnL < 0 ? 'neg' : '';
+    const monthStr = stats.monthPnL !== 0 ? f.Msign(stats.monthPnL) : '—';
+    const wrStr  = stats.winRate != null ? (stats.winRate * 100).toFixed(1) + '%' : '—';
+    const ddStr  = stats.drawdown ? f.pctSign(stats.drawdown) : '—';
+    const ddCls  = stats.drawdown <= -0.07 ? 'neg' : stats.drawdown < 0 ? 'amber' : '';
+    const mgStr  = stats.latestMargin ? stats.latestMargin.toFixed(1) + 'M' : '—';
+
+    return `<div class="metrics-grid">
+      <div class="metric">
+        <div class="metric-label">NAV <button class="btn btn-ghost btn-xs" onclick="MODALS.openAddNav()">✏</button></div>
+        <div class="metric-value">${navStr}</div>
+        <div class="metric-sub">${ytdStr}</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">P&L tháng này</div>
+        <div class="metric-value ${monthPnlCls}">${monthStr}</div>
+        <div class="metric-sub">Cổ phiếu + phái sinh</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Win Rate (YTD)</div>
+        <div class="metric-value amber">${wrStr}</div>
+        <div class="metric-sub">Closed positions năm nay</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Drawdown</div>
+        <div class="metric-value ${ddCls}">${ddStr}</div>
+        <div class="metric-sub">Limit: −7% / −10% / −15%</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Open Positions</div>
+        <div class="metric-value">${stats.openCount}</div>
+        <div class="metric-sub">&nbsp;</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Margin dư nợ</div>
+        <div class="metric-value ${stats.latestMargin > 0 ? 'amber' : ''}">${mgStr}</div>
+        <div class="metric-sub"><button class="btn btn-ghost btn-xs" onclick="MODALS.openAddMargin()">Cập nhật</button></div>
+      </div>
+    </div>`;
+  }
+
+  // ----------------------------------------------------------
+  // SL DISTANCE BAR
+  // ----------------------------------------------------------
+  function renderSlDistanceBar(positions) {
+    const rows = positions
+      .filter(p => p.stoplossCurrent)
+      .map(p => {
+        const s = DATA.positionSummary(p);
+        const currentPrice = s.avgCost; // fallback — real price from weekly upload
+        const slDist = p.stoplossCurrent && s.avgCost ? (s.avgCost - p.stoplossCurrent) / s.avgCost : null;
+        const pct = slDist != null ? (slDist * 100).toFixed(1) : null;
+        const barW = slDist != null ? Math.min(Math.max(slDist * 500, 2), 100) : 0;
+        const cls  = slDist == null ? '' : slDist < 0 ? 'neg' : slDist < 0.05 ? 'amber' : 'pos';
+        const barColor = slDist == null ? 'var(--bg4)' : slDist < 0 ? 'var(--red)' : slDist < 0.05 ? 'var(--amber)' : 'var(--green)';
+        const badge = slDist == null ? '' : slDist < 0 ? `<span class="badge badge-red">HIT</span>` : `<span class="badge badge-gray">${pct}%</span>`;
+        return `<div class="sl-row">
+          <span class="sl-ticker">${p.ticker}</span>
+          <div class="sl-bar-wrap"><div class="prog-track"><div class="prog-fill" style="width:${barW}%;background:${barColor}"></div></div></div>
+          ${badge}
+          <span class="text-mono text-muted nowrap" style="min-width:54px;text-align:right">${f.price(p.stoplossCurrent)}</span>
+          <button class="btn btn-ghost btn-xs" onclick="MODALS.openUpdateSl('${p.id}')">✏</button>
+        </div>`;
+      });
+
+    if (!rows.length) return '';
+    return `<div class="card mb-12" style="margin-bottom:14px">
+      <div class="card-hd"><span class="card-title">Stoploss Distance</span></div>
+      ${rows.join('')}
+    </div>`;
+  }
+
+  // ----------------------------------------------------------
+  // OPEN POSITIONS TABLE
+  // ----------------------------------------------------------
+  function renderOpenPositionsTable(positions) {
+    if (!positions.length) return `<div class="card"><div class="empty-state"><div class="empty-state-icon">📊</div><div class="empty-state-title">Chưa có position nào</div><button class="btn btn-primary" onclick="MODALS.openAddPosition()">+ New Position</button></div></div>`;
+
+    const rows = positions.map(p => {
+      const s = DATA.positionSummary(p);
+      const statusCls = 'badge status-' + p.status.toLowerCase().replace('_','');
+      return `<tr onclick="POSITIONS.openDetail('${p.id}')" style="cursor:pointer">
+        <td><strong>${p.ticker}</strong></td>
+        <td><span class="badge ${statusCls}">${p.status.replace('_',' ')}</span></td>
+        <td class="mono muted">${f.dateFull(p.openDate)}</td>
+        <td class="mono">${f.qty(s.currentQty)}</td>
+        <td class="mono">${f.price(s.avgCost)}</td>
+        <td class="mono ${f.cls(s.netPnL)}">${f.Msign(s.netPnL)}</td>
+        <td class="mono ${f.cls(s.pctPnL)}">${f.pctSign(s.pctPnL)}</td>
+        <td class="mono muted">${f.days(s.holdDays)}</td>
+        <td><span class="badge badge-gray">${p.sector}</span></td>
+        <td class="muted">${p.buyingType?.replace(/_/g,' ')}</td>
+      </tr>`;
+    }).join('');
+
+    return `<div class="card overflow-x">
+      <div class="card-hd"><span class="card-title">Open Positions</span><button class="btn btn-secondary btn-sm" onclick="APP.showPage('positions')">Xem tất cả →</button></div>
+      <table class="tbl">
+        <thead><tr><th>Ticker</th><th>Status</th><th>Mở</th><th>KL</th><th>Avg Cost</th><th>Net P&L</th><th>%</th><th>Hold</th><th>Sector</th><th>Setup</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+  }
+
+  // ----------------------------------------------------------
+  // NAV CARD (equity curve placeholder)
+  // ----------------------------------------------------------
+  function renderNavCard(stats) {
+    const snaps = (DATA.db().navSnapshots || []).sort((a,b) => a.date.localeCompare(b.date));
+    if (snaps.length < 2) return `<div class="card mb-12" style="margin-bottom:14px">
+      <div class="card-hd"><span class="card-title">NAV History</span><button class="btn btn-secondary btn-sm" onclick="MODALS.openAddNav()">+ Update</button></div>
+      <div class="empty-state" style="padding:24px"><div class="empty-state-title">Chưa có dữ liệu</div></div>
+    </div>`;
+
+    const maxNav = Math.max(...snaps.map(s => s.navM));
+    const minNav = Math.min(...snaps.map(s => s.navM));
+    const W = 300, H = 80, PAD = 8;
+    const pts = snaps.map((s, i) => {
+      const x = PAD + (i / (snaps.length - 1)) * (W - PAD * 2);
+      const y = H - PAD - ((s.navM - minNav) / ((maxNav - minNav) || 1)) * (H - PAD * 2);
+      return [x.toFixed(1), y.toFixed(1)];
+    });
+    const lineD = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0]},${p[1]}`).join(' ');
+    const areaD = lineD + ` L${pts[pts.length-1][0]},${H} L${pts[0][0]},${H} Z`;
+
+    return `<div class="card" style="margin-bottom:14px">
+      <div class="card-hd"><span class="card-title">NAV History</span><button class="btn btn-secondary btn-sm" onclick="MODALS.openAddNav()">+ Update</button></div>
+      <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:80px">
+        <defs><linearGradient id="ng" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#00d4aa" stop-opacity=".3"/><stop offset="100%" stop-color="#00d4aa" stop-opacity="0"/></linearGradient></defs>
+        <path d="${areaD}" fill="url(#ng)"/>
+        <path d="${lineD}" fill="none" stroke="#00d4aa" stroke-width="1.5" stroke-linejoin="round"/>
+      </svg>
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);font-family:var(--mono);margin-top:4px">
+        <span>${f.dateFull(snaps[0].date)}</span><span>${snaps[0].navM.toFixed(0)}M → ${snaps[snaps.length-1].navM.toFixed(0)}M</span><span>${f.dateFull(snaps[snaps.length-1].date)}</span>
+      </div>
+    </div>`;
+  }
+
+  // ----------------------------------------------------------
+  // SECTOR EXPOSURE
+  // ----------------------------------------------------------
+  function renderSectorCard(positions) {
+    const sectorMap = {};
+    let total = 0;
+    for (const p of positions) {
+      const s = DATA.positionSummary(p);
+      const val = s.currentQty * s.avgCost;
+      sectorMap[p.sector] = (sectorMap[p.sector] || 0) + val;
+      total += val;
+    }
+    if (!total) return '';
+    const rows = Object.entries(sectorMap).sort((a,b)=>b[1]-a[1]).map(([sec, val]) => {
+      const pct = val / total;
+      return `<div class="sector-row">
+        <span class="sector-name">${sec}</span>
+        <div style="flex:1"><div class="prog-track"><div class="prog-fill" style="width:${(pct*100).toFixed(0)}%;background:var(--blue)"></div></div></div>
+        <span class="text-mono text-muted" style="min-width:36px;text-align:right">${(pct*100).toFixed(0)}%</span>
+      </div>`;
+    }).join('');
+    return `<div class="card" style="margin-bottom:14px"><div class="card-hd"><span class="card-title">Sector Exposure</span></div>${rows}</div>`;
+  }
+
+  // ----------------------------------------------------------
+  // MONTHLY P&L
+  // ----------------------------------------------------------
+  function renderMonthlyPnlCard() {
+    const year = new Date().getFullYear();
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const data = months.map((m, i) => {
+      const mStr = `${year}-${String(i+1).padStart(2,'0')}`;
+      let pnl = 0;
+      for (const pos of DATA.db().positions || []) {
+        for (const leg of pos.legs || []) {
+          if (!leg.date.startsWith(mStr)) continue;
+          if (leg.type === 'SELL') pnl += (leg._sellPnL || 0);
+          if (leg.type === 'DIV_CASH') pnl += leg.price;
+        }
+      }
+      return { m, pnl };
+    });
+    const maxAbs = Math.max(...data.map(d => Math.abs(d.pnl)), 1);
+    const curMonth = new Date().getMonth();
+    const rows = data.slice(0, curMonth + 1).map(({ m, pnl }) => {
+      const w = Math.abs(pnl) / maxAbs * 140;
+      const cls = pnl > 0 ? 'pos' : pnl < 0 ? 'neg' : 'muted';
+      const bar = pnl >= 0
+        ? `<div style="height:12px;width:${w}px;background:rgba(0,212,170,.5);border-radius:0 3px 3px 0;min-width:2px"></div>`
+        : `<div style="flex:1;display:flex;justify-content:flex-end"><div style="height:12px;width:${w}px;background:rgba(255,77,109,.5);border-radius:3px 0 0 3px;min-width:2px"></div></div>`;
+      return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--border)">
+        <span style="font-family:var(--mono);font-size:10px;color:var(--text3);width:28px">${m}</span>
+        <div style="flex:1;display:flex;align-items:center">${bar}</div>
+        <span class="text-mono ${cls}" style="min-width:52px;text-align:right;font-size:11px">${pnl !== 0 ? f.Msign(pnl) : '—'}</span>
+      </div>`;
+    }).join('');
+    return `<div class="card"><div class="card-hd"><span class="card-title">Monthly P&L ${year}</span></div>${rows || '<div class="empty-state" style="padding:16px">Chưa có data</div>'}</div>`;
+  }
+
+  return { render };
+})();
+
+
+// === positions.js ===
+// ============================================================
+// POSITIONS.JS
+// ============================================================
+
+const POSITIONS = (() => {
+  const f = DATA.fmt;
+  let _detailId = null;
+  let _detailTab = 'timeline';
+
+  // ----------------------------------------------------------
+  // MAIN POSITIONS PAGE
+  // ----------------------------------------------------------
+  function render() {
+    const page = document.getElementById('page-positions');
+    const active = DATA.getPositions('active');
+    const closed = DATA.getPositions('closed');
+
+    page.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+        <div style="font-size:20px;font-weight:600">Positions</div>
+        <div style="display:flex;gap:8px">
+          <label class="btn btn-secondary btn-sm" style="cursor:pointer">
+            📂 Import FPTS
+            <input type="file" accept=".xls,.xlsx,.csv" style="display:none" onchange="POSITIONS.handleImport(event)">
+          </label>
+          <button class="btn btn-primary btn-sm" onclick="MODALS.openAddPosition()">+ New Position</button>
+        </div>
+      </div>
+
+      <div class="section-div">Active — ${active.length} position${active.length !== 1 ? 's' : ''}</div>
+      ${renderActiveArea(active)}
+
+      <div class="section-div" style="cursor:pointer" onclick="POSITIONS.toggleHistorical()" id="hist-toggle">
+        Historical — ${closed.length} closed ▼
+      </div>
+      <div id="hist-area" style="display:none">
+        ${renderHistoricalArea(closed)}
+      </div>`;
+  }
+
+  function toggleHistorical() {
+    const area = document.getElementById('hist-area');
+    const toggle = document.getElementById('hist-toggle');
+    if (area.style.display === 'none') {
+      area.style.display = '';
+      toggle.textContent = toggle.textContent.replace('▼','▲');
+    } else {
+      area.style.display = 'none';
+      toggle.textContent = toggle.textContent.replace('▲','▼');
+    }
+  }
+
+  // ----------------------------------------------------------
+  // ACTIVE AREA
+  // ----------------------------------------------------------
+  function renderActiveArea(positions) {
+    if (!positions.length) return `<div class="card"><div class="empty-state"><div class="empty-state-icon">📈</div><div class="empty-state-title">Không có active position</div><button class="btn btn-primary" onclick="MODALS.openAddPosition()">+ Mở Position mới</button></div></div>`;
+
+    const rows = positions.map(p => positionRow(p, true)).join('');
+    return `<div class="card overflow-x">
+      <table class="tbl">
+        <thead><tr><th>ID</th><th>Status</th><th>Ticker</th><th>KL hiện tại</th><th>Avg Cost</th><th>Net P&L</th><th>%</th><th>Hold</th><th>Sector</th><th>Setup</th><th>SL</th><th></th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+  }
+
+  // ----------------------------------------------------------
+  // HISTORICAL AREA
+  // ----------------------------------------------------------
+  function renderHistoricalArea(positions) {
+    if (!positions.length) return `<div class="card"><div class="empty-state"><div class="empty-state-icon">📚</div><div class="empty-state-title">Chưa có closed position</div></div></div>`;
+    const rows = positions.map(p => positionRow(p, false)).join('');
+    return `<div class="card overflow-x">
+      <table class="tbl">
+        <thead><tr><th>ID</th><th>Ticker</th><th>Mở</th><th>Đóng</th><th>Hold</th><th>Invested</th><th>Net P&L</th><th>%</th><th>Lý do</th><th>Sector</th><th>Setup</th><th></th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+  }
+
+  function positionRow(p, isActive) {
+    const s = DATA.positionSummary(p);
+    const statusCls = 'badge status-' + p.status.toLowerCase().replace(/_/g,'-');
+    const slBadge = p.stoplossCurrent ? `<span class="text-mono text-muted">${f.price(p.stoplossCurrent)}</span>` : '<span class="text-muted">—</span>';
+
+    if (isActive) {
+      return `<tr onclick="POSITIONS.openDetail('${p.id}')" style="cursor:pointer">
+        <td class="mono muted nowrap">${p.id}</td>
+        <td><span class="badge ${statusCls}">${p.status.replace(/_/g,' ')}</span></td>
+        <td><strong>${p.ticker}</strong></td>
+        <td class="mono">${f.qty(s.currentQty)}</td>
+        <td class="mono">${f.price(s.avgCost)}</td>
+        <td class="mono ${f.cls(s.netPnL)}">${f.Msign(s.netPnL)}</td>
+        <td class="mono ${f.cls(s.pctPnL)}">${f.pctSign(s.pctPnL)}</td>
+        <td class="mono muted">${f.days(s.holdDays)}</td>
+        <td><span class="badge badge-gray">${p.sector}</span></td>
+        <td class="muted">${(p.buyingType||'').replace(/_/g,' ')}</td>
+        <td>${slBadge}</td>
+        <td><div style="display:flex;gap:4px" onclick="event.stopPropagation()">
+          <button class="btn btn-secondary btn-xs" onclick="MODALS.openAddLeg('${p.id}')">+ Leg</button>
+          <button class="btn btn-secondary btn-xs" onclick="MODALS.openClosePosition('${p.id}')">Close</button>
+        </div></td>
+      </tr>`;
+    } else {
+      const pnlCls = s.netPnL > 0 ? 'badge-green' : 'badge-red';
+      return `<tr onclick="POSITIONS.openDetail('${p.id}')" style="cursor:pointer">
+        <td class="mono muted nowrap" style="font-size:10px">${p.closedId || p.id}</td>
+        <td><strong>${p.ticker}</strong></td>
+        <td class="mono muted">${f.dateFull(p.openDate)}</td>
+        <td class="mono muted">${f.dateFull(p.closeDate)}</td>
+        <td class="mono muted">${f.days(s.holdDays)}</td>
+        <td class="mono muted">${f.Mshort(s.invested)}</td>
+        <td class="mono ${f.cls(s.netPnL)}">${f.Msign(s.netPnL)}</td>
+        <td><span class="badge ${pnlCls}">${f.pctSign(s.pctPnL)}</span></td>
+        <td class="muted" style="font-size:11px">${(p.closeReason||'').replace(/_/g,' ')}</td>
+        <td><span class="badge badge-gray">${p.sector}</span></td>
+        <td class="muted">${(p.buyingType||'').replace(/_/g,' ')}</td>
+        <td onclick="event.stopPropagation()"><button class="btn btn-ghost btn-xs" onclick="POSITIONS.deletePos('${p.id}')">✕</button></td>
+      </tr>`;
+    }
+  }
+
+  // ----------------------------------------------------------
+  // POSITION DETAIL (opens inline replacing the page)
+  // ----------------------------------------------------------
+  function openDetail(id) {
+    _detailId = id;
+    _detailTab = 'timeline';
+    renderDetail();
+  }
+
+  function renderDetail() {
+    const page = document.getElementById('page-positions');
+    const pos = DATA.getPosition(_detailId);
+    if (!pos) { render(); return; }
+    const s = DATA.positionSummary(pos);
+    const statusCls = 'badge status-' + pos.status.toLowerCase().replace(/_/g,'-');
+
+    page.innerHTML = `
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+        <button class="btn btn-ghost btn-sm" onclick="POSITIONS.render()">← Back</button>
+        <div style="font-size:20px;font-weight:600">${pos.ticker}</div>
+        <span class="badge ${statusCls}">${pos.status.replace(/_/g,' ')}</span>
+        <span class="badge badge-gray">${pos.sector}</span>
+        <span class="badge badge-gray">${(pos.positionType||'').replace(/_/g,' ')}</span>
+        <div style="margin-left:auto;display:flex;gap:8px">
+          <button class="btn btn-secondary btn-sm" onclick="MODALS.openUpdateSl('${pos.id}')">SL ✏</button>
+          <button class="btn btn-secondary btn-sm" onclick="MODALS.openAddLeg('${pos.id}')">+ Leg</button>
+          ${pos.status !== 'CLOSED' ? `<button class="btn btn-primary btn-sm" onclick="MODALS.openClosePosition('${pos.id}')">Close Position</button>` : ''}
+        </div>
+      </div>
+
+      <div class="grid-main" style="margin-bottom:0">
+        <div>
+          <div class="detail-tabs">
+            <button class="detail-tab ${_detailTab==='timeline'?'active':''}" onclick="POSITIONS.setDetailTab('timeline')">Timeline</button>
+            <button class="detail-tab ${_detailTab==='summary'?'active':''}" onclick="POSITIONS.setDetailTab('summary')">Summary</button>
+            <button class="detail-tab ${_detailTab==='criteria'?'active':''}" onclick="POSITIONS.setDetailTab('criteria')">Criteria</button>
+          </div>
+          <div id="detail-tab-content">
+            ${_detailTab === 'timeline' ? renderTimeline(pos) : ''}
+            ${_detailTab === 'summary'  ? renderSummaryTab(pos, s) : ''}
+            ${_detailTab === 'criteria' ? renderCriteriaTab(pos) : ''}
+          </div>
+        </div>
+        <div>
+          ${renderDetailSidebar(pos, s)}
+        </div>
+      </div>`;
+  }
+
+  function setDetailTab(tab) {
+    _detailTab = tab;
+    renderDetail();
+  }
+
+  // ----------------------------------------------------------
+  // TIMELINE TAB
+  // ----------------------------------------------------------
+  function renderTimeline(pos) {
+    if (!pos.legs.length) return `<div class="empty-state"><div class="empty-state-title">Chưa có leg nào</div><button class="btn btn-primary" onclick="MODALS.openAddLeg('${pos.id}')">+ Add first leg</button></div>`;
+
+    const items = pos.legs.map(leg => {
+      const dotCls = { BUY:'tl-buy', SELL:'tl-sell', DIV_CASH:'tl-divt', DIV_STOCK:'tl-divs', RIGHTS:'tl-rights' }[leg.type] || 'tl-adj';
+      const icon   = { BUY:'↑', SELL:'↓', DIV_CASH:'$', DIV_STOCK:'⊕', RIGHTS:'⚡' }[leg.type] || '·';
+      const typeLabel = { BUY:'MUA', SELL:'BÁN', DIV_CASH:'CỔ TỨC TIỀN', DIV_STOCK:'CỔ TỨC CP', RIGHTS:'QUYỀN MUA' }[leg.type] || leg.type;
+
+      let valueStr = '', extraStr = '';
+      if (leg.type === 'BUY')  { valueStr = `${f.qty(leg.qty)} CP × ${f.price(leg.price)}`; extraStr = `Phí: ${(leg.fee/1000).toFixed(0)}K · Avg cost: ${f.price(leg.avgCostAfter)}`; }
+      if (leg.type === 'SELL') { valueStr = `${f.qty(leg.qty)} CP × ${f.price(leg.price)}`; extraStr = `Phí: ${(leg.fee/1000).toFixed(0)}K · Thuế: ${(leg.tax/1000).toFixed(0)}K · P&L lần này: <span class="${leg._sellPnL>=0?'text-pos':'text-neg'}">${f.Msign(leg._sellPnL)}</span>`; }
+      if (leg.type === 'DIV_CASH')  { valueStr = `<span class="text-pos">+${f.M(leg.price)}</span> thực nhận`; extraStr = 'Đã khấu trừ 5% TNCN'; }
+      if (leg.type === 'DIV_STOCK') {
+        valueStr = `+${f.qty(leg.qty)} CP thưởng`;
+        extraStr = `Avg cost adj: ${f.price(leg.avgCostAfter)} · Thuế deferred: ${(leg._taxDeferred/1000).toFixed(0)}K`;
+        if (leg._slAdjFactor && pos.stoplossCurrent) {
+          const sugSl = DATA.suggestSlAfterDivStock(pos.stoplossCurrent, leg._slAdjFactor);
+          extraStr += ` · <span style="color:var(--amber)">SL đề xuất adj: ${f.price(sugSl)}</span>`;
+        }
+      }
+      if (leg.type === 'RIGHTS') { valueStr = `${f.qty(leg.qty)} CP quyền · Giá: ${leg.rightsPrice ? f.price(leg.rightsPrice) : '—'}`; extraStr = leg.rightsPending ? `<span style="color:var(--amber)">Pending · Deadline: ${f.dateFull(leg.rightsDeadline)}</span>` : leg.rightsDeclined ? 'Đã bỏ qua' : 'Đã thực hiện'; }
+
+      const marginBadge = leg.isMargin ? `<span class="badge badge-amber" style="font-size:9px;margin-left:6px">margin</span>` : '';
+
+      return `<div class="timeline-item">
+        <div class="timeline-dot ${dotCls}">${icon}</div>
+        <div class="timeline-content">
+          <div class="timeline-title">
+            <span class="badge badge-gray" style="margin-right:6px">${typeLabel}</span>
+            ${valueStr}${marginBadge}
+          </div>
+          <div class="timeline-meta">${f.dateFull(leg.date)}${leg.note ? ' · ' + leg.note : ''}</div>
+          ${extraStr ? `<div class="timeline-running">${extraStr}</div>` : ''}
+        </div>
+        <div style="text-align:right;font-size:10px;color:var(--text3)">
+          KL: ${f.qty(leg.qtyAfter)}
+        </div>
+      </div>`;
+    }).join('');
+
+    return `<div class="card"><div class="timeline">${items}</div></div>`;
+  }
+
+  // ----------------------------------------------------------
+  // SUMMARY TAB
+  // ----------------------------------------------------------
+  function renderSummaryTab(pos, s) {
+    const divTaxNote = s.divStockTaxDeferred > 0
+      ? `<div class="alert alert-info mt-8"><span class="alert-icon">ℹ</span><div class="alert-body"><div class="alert-title">Thuế TNCN cổ tức CP chưa thực hiện</div><div class="alert-sub">Còn ${f.qty(s.divStockQty)} CP thưởng chưa bán hết · Thuế deferred: ~${f.M(s.divStockTaxDeferred)}</div></div></div>` : '';
+    return `<div class="card">
+      <div class="grid-2" style="margin-bottom:16px">
+        <div><div class="computed-item-label">Avg buy price</div><div class="computed-item-value">${f.price(s.avgBuyPrice)}</div></div>
+        <div><div class="computed-item-label">Avg sell price</div><div class="computed-item-value">${f.price(s.avgSellPrice)}</div></div>
+        <div><div class="computed-item-label">Total invested</div><div class="computed-item-value">${f.Mshort(s.invested)}</div></div>
+        <div><div class="computed-item-label">Total fees + tax</div><div class="computed-item-value text-neg">${f.M(s.totalFees)}</div></div>
+        <div><div class="computed-item-label">Gross P&L</div><div class="computed-item-value ${f.cls(s.grossPnL)}">${f.Msign(s.grossPnL)}</div></div>
+        <div><div class="computed-item-label">Dividend income</div><div class="computed-item-value text-pos">${s.divCashTotal > 0 ? '+' + f.Mshort(s.divCashTotal) : '—'}</div></div>
+      </div>
+      <div class="divider"></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0">
+        <span style="font-size:14px;font-weight:600">Net P&L</span>
+        <span style="font-family:var(--mono);font-size:22px;font-weight:500" class="${f.cls(s.netPnL)}">${f.Msign(s.netPnL)}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text3);padding-bottom:8px">
+        <span>% on position</span><span class="${f.cls(s.pctPnL)}">${f.pctSign(s.pctPnL)}</span>
+      </div>
+      ${divTaxNote}
+    </div>`;
+  }
+
+  // ----------------------------------------------------------
+  // CRITERIA TAB
+  // ----------------------------------------------------------
+  function renderCriteriaTab(pos) {
+    const row = (label, val) => `<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);font-size:12px"><span style="color:var(--text3)">${label}</span><span style="font-weight:500">${val || '—'}</span></div>`;
+    return `<div class="card">
+      ${row('Buying Type', (pos.buyingType||'').replace(/_/g,' '))}
+      ${row('Stock Type', pos.stockType)}
+      ${row('Position Type', (pos.positionType||'').replace(/_/g,' '))}
+      ${row('Market Regime @ entry', (pos.marketRegime||'').replace(/_/g,' '))}
+      ${row('PB Buy', pos.pbBuy)}
+      ${row('PB Sell', pos.pbSell)}
+      ${row('PE Buy', pos.peBuy)}
+      ${row('PE Sell', pos.peSell)}
+      ${row('RS 52W @ 1st buy (Minervini)', pos.rs52wBuy != null ? pos.rs52wBuy + '%' : null)}
+      ${row('RS 52W @ last sold', pos.rs52wSell != null ? pos.rs52wSell + '%' : null)}
+      ${row('ROE', pos.roe != null ? pos.roe + '%' : null)}
+      ${row('ROA', pos.roa != null ? pos.roa + '%' : null)}
+      ${row('Avg Vol 2W', pos.avgVol2w != null ? pos.avgVol2w.toLocaleString('vi-VN') + 'K CP' : null)}
+      ${row('Grade', '⭐'.repeat(pos.grade || 3))}
+      <div style="padding:10px 0">
+        <div style="font-size:11px;color:var(--text3);margin-bottom:6px">THESIS</div>
+        <div style="font-size:12px;color:var(--text2);line-height:1.7">${pos.thesis || '<span style="color:var(--text3)">Chưa có</span>'}</div>
+      </div>
+      ${pos.closeReason ? `<div class="divider"></div>
+        ${row('Close Reason', (pos.closeReason||'').replace(/_/g,' '))}
+        ${row('Close Grade', '⭐'.repeat(pos.closeGrade || 0))}
+        <div style="padding:10px 0"><div style="font-size:11px;color:var(--text3);margin-bottom:6px">CLOSE NOTES</div><div style="font-size:12px;color:var(--text2)">${pos.closeNotes||'—'}</div></div>` : ''}
+    </div>`;
+  }
+
+  // ----------------------------------------------------------
+  // DETAIL SIDEBAR
+  // ----------------------------------------------------------
+  function renderDetailSidebar(pos, s) {
+    const slHistory = (pos.stoplossHistory || []).slice(-4).reverse().map(h =>
+      `<div style="display:flex;justify-content:space-between;font-size:11px;padding:5px 0;border-bottom:1px solid var(--border)"><span style="color:var(--text3)">${f.dateFull(h.date)}</span><span>${f.price(h.price)}</span><span style="color:var(--text3);font-size:10px">${h.reason||''}</span></div>`
+    ).join('');
+
+    return `
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-hd"><span class="card-title">Position Info</span></div>
+        <div style="display:flex;flex-direction:column;gap:6px;font-size:12px">
+          <div style="display:flex;justify-content:space-between"><span style="color:var(--text3)">ID</span><span class="mono" style="font-size:10px">${pos.id}</span></div>
+          <div style="display:flex;justify-content:space-between"><span style="color:var(--text3)">Opened</span><span>${f.dateFull(pos.openDate)}</span></div>
+          ${pos.closeDate ? `<div style="display:flex;justify-content:space-between"><span style="color:var(--text3)">Closed</span><span>${f.dateFull(pos.closeDate)}</span></div>` : ''}
+          <div style="display:flex;justify-content:space-between"><span style="color:var(--text3)">Hold days</span><span>${f.days(s.holdDays)}</span></div>
+          <div style="display:flex;justify-content:space-between"><span style="color:var(--text3)">Buy legs</span><span>${pos.legs.filter(l=>l.type==='BUY').length}</span></div>
+          <div style="display:flex;justify-content:space-between"><span style="color:var(--text3)">Sell legs</span><span>${pos.legs.filter(l=>l.type==='SELL').length}</span></div>
+        </div>
+      </div>
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-hd">
+          <span class="card-title">Stoploss</span>
+          <button class="btn btn-secondary btn-xs" onclick="MODALS.openUpdateSl('${pos.id}')">✏ Update</button>
+        </div>
+        <div style="font-family:var(--mono);font-size:22px;font-weight:500;color:var(--red);margin-bottom:10px">${f.price(pos.stoplossCurrent)}</div>
+        ${slHistory || '<div style="font-size:11px;color:var(--text3)">Chưa có history</div>'}
+      </div>
+      <div class="card">
+        <div class="card-hd"><span class="card-title">Quick Actions</span></div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <button class="btn btn-secondary w100" onclick="MODALS.openAddLeg('${pos.id}')">+ Add Leg</button>
+          ${pos.status !== 'CLOSED' ? `<button class="btn btn-secondary w100" onclick="POSITIONS.toggleStatus('${pos.id}','INVALIDATED')">Mark INVALIDATED</button>` : ''}
+          <button class="btn btn-danger w100" onclick="POSITIONS.deletePos('${pos.id}')">Delete Position</button>
+        </div>
+      </div>`;
+  }
+
+  // ----------------------------------------------------------
+  // IMPORT HANDLER
+  // ----------------------------------------------------------
+  async function handleImport(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const name = file.name.toLowerCase();
+    try {
+      if (name.includes('lichsukhopLenh') || name.includes('lichsu')) {
+        const legs = await IMPORT.parseLichSuKhopLenh(file);
+        const results = IMPORT.importLegsIntoPositions(legs);
+        const newCount = results.filter(r => r.isNew).length;
+        const updCount = results.filter(r => !r.isNew && r.legsAdded > 0).length;
+        alert(`Import xong!\n• ${newCount} position mới\n• ${updCount} position cập nhật thêm legs`);
+      } else if (name.includes('baocaotaisan') || name.includes('taisan')) {
+        const data = await IMPORT.parseBaoCaoTaiSan(file);
+        if (data.date && data.navM) {
+          DATA.upsertNavSnapshot(data.date, data.navM);
+          if (data.marginM > 0) DATA.addMarginEntry({ date: data.date, balanceM: data.marginM, note: 'Weekly upload', auto: false });
+          alert(`Import xong!\n• NAV: ${data.navM.toFixed(1)}M\n• Margin: ${data.marginM.toFixed(1)}M\n• ${data.portfolio.length} CP trong danh mục`);
+        }
+      }
+      render();
+    } catch(e) {
+      alert('Lỗi import: ' + e.message);
+    }
+    event.target.value = '';
+  }
+
+  function toggleStatus(id, status) {
+    const pos = DATA.getPosition(id);
+    if (!pos) return;
+    pos.status = pos.status === status ? 'OPEN' : status;
+    DATA.savePosition(pos);
+    renderDetail();
+  }
+
+  function deletePos(id) {
+    if (!confirm('Xoá position này? Không thể hoàn tác.')) return;
+    DATA.deletePosition(id);
+    render();
+  }
+
+  return { render, openDetail, setDetailTab, handleImport, toggleStatus, deletePos, toggleHistorical };
+})();
+
+
+// === modules.js ===
+// ============================================================
+// DERIVATIVES.JS
+// ============================================================
+const DERIVATIVES = (() => {
+  const f = DATA.fmt;
+  function render() {
+    const page = document.getElementById('page-derivatives');
+    const derivs = DATA.db().derivatives || [];
+    const totalPnL = derivs.reduce((s, d) => s + (d.pnl || 0), 0);
+    const wins = derivs.filter(d => d.pnl > 0).length;
+    const losses = derivs.filter(d => d.pnl <= 0 && d.closeDate).length;
+
+    const rows = derivs.sort((a,b)=>(b.openDate||'').localeCompare(a.openDate||'')).map(d => {
+      const cls = d.pnl > 0 ? 'pos' : d.pnl < 0 ? 'neg' : 'muted';
+      return `<tr>
+        <td class="mono">${d.contract}</td>
+        <td><span class="badge ${d.direction==='LONG'?'badge-green':'badge-red'}">${d.direction}</span></td>
+        <td class="mono muted">${f.dateFull(d.openDate)}</td>
+        <td class="mono muted">${f.dateFull(d.closeDate)}</td>
+        <td class="mono">${d.entryPrice?.toLocaleString()||'—'}</td>
+        <td class="mono">${d.exitPrice?.toLocaleString()||'—'}</td>
+        <td class="mono">${d.qty || 0}</td>
+        <td class="mono ${cls}">${d.pnl > 0 ? '+' : ''}${f.Mshort(d.pnl)}</td>
+        <td class="muted" style="font-size:11px">${d.note||''}</td>
+        <td><button class="btn btn-ghost btn-xs" onclick="DATA.deleteDerivative(${d.id});DERIVATIVES.render()">✕</button></td>
+      </tr>`;
+    }).join('');
+
+    page.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+        <div style="font-size:20px;font-weight:600">Derivatives</div>
+        <div style="display:flex;gap:8px">
+          <label class="btn btn-secondary btn-sm" style="cursor:pointer">📂 Import BaoCaoLaiLo<input type="file" accept=".xls" style="display:none" onchange="DERIVATIVES.handleImport(event)"></label>
+          <button class="btn btn-primary btn-sm" onclick="MODALS.openAddDeriv()">+ Add</button>
+        </div>
+      </div>
+      <div class="metrics-grid" style="margin-bottom:16px">
+        <div class="metric"><div class="metric-label">Total P&L</div><div class="metric-value ${f.cls(totalPnL)}">${f.Msign(totalPnL)}</div></div>
+        <div class="metric"><div class="metric-label">Win / Loss</div><div class="metric-value">${wins} / ${losses}</div></div>
+        <div class="metric"><div class="metric-label">Contracts</div><div class="metric-value">${derivs.length}</div></div>
+      </div>
+      <div class="card overflow-x">
+        ${derivs.length ? `<table class="tbl"><thead><tr><th>Contract</th><th>Dir</th><th>Open</th><th>Close</th><th>Entry</th><th>Exit</th><th>Qty</th><th>P&L</th><th>Note</th><th></th></tr></thead><tbody>${rows}</tbody></table>`
+        : `<div class="empty-state"><div class="empty-state-icon">⚡</div><div class="empty-state-title">Chưa có derivative nào</div><button class="btn btn-primary" onclick="MODALS.openAddDeriv()">+ Add</button></div>`}
+      </div>`;
+  }
+
+  async function handleImport(event) {
+    const file = event.target.files[0]; if (!file) return;
+    try {
+      const contracts = await IMPORT.parseBaoCaoLaiLo(file);
+      contracts.forEach(c => DATA.saveDerivative(c));
+      alert(`Import xong! ${contracts.length} contracts.`);
+      render();
+    } catch(e) { alert('Lỗi: ' + e.message); }
+    event.target.value = '';
+  }
+  return { render, handleImport };
+})();
+
+// ============================================================
+// ACCOUNT.JS
+// ============================================================
+const ACCOUNT = (() => {
+  const f = DATA.fmt;
+  function render() {
+    const page = document.getElementById('page-account');
+    const navSnaps = (DATA.db().navSnapshots || []).sort((a,b) => b.date.localeCompare(a.date));
+    const marginLog = (DATA.db().marginLog || []).sort((a,b) => b.date.localeCompare(a.date));
+    const cashFlow = (DATA.db().cashFlow || []).sort((a,b) => b.date.localeCompare(a.date));
+    const year = new Date().getFullYear();
+
+    // Trading cost summary
+    let totalFees = 0, totalTaxSell = 0, totalDivTax = 0, totalMarginInterest = 0;
+    for (const pos of DATA.db().positions || []) {
+      for (const leg of pos.legs || []) {
+        if (!leg.date?.startsWith(String(year))) continue;
+        totalFees += leg.fee || 0;
+        totalTaxSell += leg.tax || 0;
+      }
+    }
+    for (const e of marginLog.filter(m => m.date?.startsWith(String(year)))) {
+      totalMarginInterest += (e.interestM || 0) * 1e6;
+    }
+    const totalOutgoing = totalFees + totalTaxSell + totalDivTax + totalMarginInterest;
+
+    page.innerHTML = `
+      <div style="font-size:20px;font-weight:600;margin-bottom:16px">Account</div>
+
+      <div class="section-div">NAV Snapshots</div>
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-hd">
+          <span class="card-title">NAV History</span>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-secondary btn-sm" onclick="MODALS.openAddNav('${year}-start')">Set ${year} Start</button>
+            <button class="btn btn-secondary btn-sm" onclick="MODALS.openAddNav()">+ Update NAV</button>
+          </div>
+        </div>
+        ${navSnaps.length ? `<table class="tbl"><thead><tr><th>Date</th><th>NAV (M)</th><th>Label</th></tr></thead><tbody>${
+          navSnaps.slice(0,12).map(s => `<tr><td class="mono muted">${f.dateFull(s.date)}</td><td class="mono">${s.navM.toFixed(1)}M</td><td class="muted">${s.label||''}</td></tr>`).join('')
+        }</tbody></table>` : `<div class="empty-state" style="padding:20px"><div class="empty-state-title">Chưa có snapshot</div><button class="btn btn-primary btn-sm" onclick="MODALS.openAddNav('${year}-start')">Nhập NAV đầu năm ${year}</button></div>`}
+      </div>
+
+      <div class="section-div">Margin Log</div>
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-hd">
+          <span class="card-title">Dư nợ theo thời gian</span>
+          <button class="btn btn-secondary btn-sm" onclick="MODALS.openAddMargin()">+ Update</button>
+        </div>
+        ${marginLog.length ? `<table class="tbl"><thead><tr><th>Date</th><th>Dư nợ (M)</th><th>Lãi tháng</th><th>Note</th></tr></thead><tbody>${
+          marginLog.slice(0,12).map(e => `<tr>
+            <td class="mono muted">${f.dateFull(e.date)}</td>
+            <td class="mono">${e.balanceM.toFixed(1)}M</td>
+            <td class="mono ${e.interestM > 0 ? 'neg' : 'muted'}">${e.interestM > 0 ? '−' + e.interestM.toFixed(2) + 'M' : '—'}</td>
+            <td class="muted">${e.note||''}</td>
+          </tr>`).join('')
+        }</tbody></table>` : `<div class="empty-state" style="padding:20px"><div class="empty-state-title">Chưa có data</div></div>`}
+      </div>
+
+      <div class="grid-2">
+        <div>
+          <div class="section-div">Trading Cost Summary ${year}</div>
+          <div class="card" style="margin-bottom:14px">
+            <table class="tbl">
+              <thead><tr><th>Loại chi phí</th><th>Số tiền</th></tr></thead>
+              <tbody>
+                <tr><td>Phí giao dịch (0.15%)</td><td class="mono neg">−${f.Mshort(totalFees)}</td></tr>
+                <tr><td>Thuế chuyển nhượng (0.1%)</td><td class="mono neg">−${f.Mshort(totalTaxSell)}</td></tr>
+                <tr><td>Lãi margin</td><td class="mono neg">−${f.Mshort(totalMarginInterest)}</td></tr>
+                <tr style="border-top:1px solid var(--border2)"><td><strong>Total outgoing</strong></td><td class="mono neg"><strong>−${f.Mshort(totalOutgoing)}</strong></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div>
+          <div class="section-div">Cash Flow</div>
+          <div class="card">
+            <div class="card-hd"><span class="card-title">Events</span><button class="btn btn-secondary btn-sm" onclick="MODALS.openAddCashFlow()">+ Add</button></div>
+            ${cashFlow.length ? `<table class="tbl"><thead><tr><th>Date</th><th>Type</th><th>Amount</th><th>Note</th></tr></thead><tbody>${
+              cashFlow.slice(0,10).map(c => {
+                const isOut = ['WITHDRAWAL','QUARTERLY_WITHDRAW','MARGIN_INTEREST'].includes(c.type);
+                return `<tr><td class="mono muted">${f.dateFull(c.date)}</td><td class="muted" style="font-size:11px">${c.type.replace(/_/g,' ')}</td><td class="mono ${isOut?'neg':'pos'}">${isOut?'−':'+'}{$${c.amountM.toFixed(1)}M</td><td class="muted">${c.note||''}</td></tr>`;
+              }).join('')
+            }</tbody></table>` : `<div class="empty-state" style="padding:20px"><div class="empty-state-title">Chưa có events</div></div>`}
+          </div>
+        </div>
+      </div>
+
+      <div class="section-div">Backup & Restore</div>
+      <div class="card">
+        <div style="font-size:12px;color:var(--text2);margin-bottom:14px">Data được tự động sync lên GitHub Gist. Export JSON để backup thêm vào OneDrive.</div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-secondary" onclick="ACCOUNT.exportJson()">⬇ Export JSON backup</button>
+          <label class="btn btn-secondary" style="cursor:pointer">⬆ Import JSON restore<input type="file" accept=".json" style="display:none" onchange="ACCOUNT.importJson(event)"></label>
+        </div>
+      </div>`;
+  }
+
+  function exportJson() {
+    const data = JSON.stringify(DATA.db(), null, 2);
+    const blob = new Blob([data], {type:'application/json'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `trademgr_backup_${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+  }
+
+  async function importJson(event) {
+    const file = event.target.files[0]; if (!file) return;
+    const text = await file.text();
+    try {
+      const parsed = JSON.parse(text);
+      if (!confirm('Restore sẽ ghi đè toàn bộ data hiện tại. Tiếp tục?')) return;
+      // Write back to gist
+      const d = DATA.db();
+      Object.assign(d, parsed);
+      await DATA.saveToGist(true);
+      APP.renderCurrentPage();
+      alert('Restore xong!');
+    } catch(e) { alert('Lỗi: ' + e.message); }
+    event.target.value = '';
+  }
+
+  async function handleTaiSanUpload(event) {
+    const file = event.target.files[0]; if (!file) return;
+    try {
+      const data = await IMPORT.parseBaoCaoTaiSan(file);
+      if (data.navM && data.date) {
+        DATA.upsertNavSnapshot(data.date, data.navM);
+        if (data.marginM > 0) DATA.addMarginEntry({
+          date: data.date, balanceM: data.marginM,
+          note: 'Weekly upload BaoCaoTaiSan', auto: false
+        });
+        // Update current prices for open positions from portfolio data
+        for (const stock of data.portfolio) {
+          const positions = DATA.getPositions('active').filter(p => p.ticker === stock.ticker);
+          for (const pos of positions) {
+            pos._currentPrice = stock.currentPrice;
+            DATA.savePosition(pos);
+          }
+        }
+        const msg = `Import xong!\n• NAV: ${data.navM.toFixed(1)}M\n• Margin dư nợ: ${data.marginM.toFixed(1)}M\n• ${data.portfolio.length} mã CK trong danh mục`;
+        alert(msg);
+        render();
+      } else {
+        alert('Không đọc được NAV từ file. Kiểm tra lại file BaoCaoTaiSan.');
+      }
+    } catch(e) { alert('Lỗi import: ' + e.message); }
+    event.target.value = '';
+  }
+
+  return { render, exportJson, importJson, handleTaiSanUpload };
+})();
+
+// ============================================================
+// ANALYTICS.JS
+// ============================================================
+const ANALYTICS = (() => {
+  const f = DATA.fmt;
+  function render() {
+    const page = document.getElementById('page-analytics');
+    const years = [...new Set((DATA.db().positions||[]).map(p=>p.closeDate?.slice(0,4)).filter(Boolean))].sort().reverse();
+    const yearOpts = ['<option value="">Tất cả năm</option>', ...years.map(y=>`<option>${y}</option>`)].join('');
+    const setupOpts = ['<option value="">Tất cả setup</option>', ...DATA.SETUP_TYPES.map(s=>`<option value="${s}">${s.replace(/_/g,' ')}</option>`)].join('');
+    const sectorOpts = ['<option value="">Tất cả sector</option>', ...DATA.SECTORS.map(s=>`<option>${s}</option>`)].join('');
+    const regimeOpts = ['<option value="">Tất cả regime</option>', ...DATA.MARKET_REGIMES.map(s=>`<option value="${s}">${s.replace(/_/g,' ')}</option>`)].join('');
+    const closeOpts = ['<option value="">Tất cả lý do</option>', ...DATA.CLOSE_REASONS.map(s=>`<option value="${s}">${s.replace(/_/g,' ')}</option>`)].join('');
+
+    page.innerHTML = `
+      <div style="font-size:20px;font-weight:600;margin-bottom:16px">Analytics — Historical Explorer</div>
+      <div class="card" style="margin-bottom:14px">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <select id="af-year" onchange="ANALYTICS.updateTable()" style="width:130px">${yearOpts}</select>
+          <select id="af-setup" onchange="ANALYTICS.updateTable()" style="width:150px">${setupOpts}</select>
+          <select id="af-sector" onchange="ANALYTICS.updateTable()" style="width:130px">${sectorOpts}</select>
+          <select id="af-regime" onchange="ANALYTICS.updateTable()" style="width:160px">${regimeOpts}</select>
+          <select id="af-close" onchange="ANALYTICS.updateTable()" style="width:150px">${closeOpts}</select>
+          <select id="af-result" onchange="ANALYTICS.updateTable()" style="width:110px"><option value="">W + L</option><option value="W">Winning</option><option value="L">Losing</option></select>
+          <button class="btn btn-ghost btn-sm" onclick="ANALYTICS.clearFilters()">✕ Clear</button>
+        </div>
+      </div>
+      <div id="analytics-stats" class="metrics-grid" style="margin-bottom:14px"></div>
+      <div class="card overflow-x"><div id="analytics-table"></div></div>`;
+
+    updateTable();
+  }
+
+  function gv(id) { const e = document.getElementById(id); return e ? e.value : ''; }
+
+  function updateTable() {
+    const data = DATA.analyticsData({
+      year: gv('af-year') || null,
+      setup: gv('af-setup') || null,
+      sector: gv('af-sector') || null,
+      regime: gv('af-regime') || null,
+      closeReason: gv('af-close') || null,
+      result: gv('af-result') || null,
+    });
+
+    // Stats
+    const statsEl = document.getElementById('analytics-stats');
+    if (statsEl) statsEl.innerHTML = `
+      <div class="metric"><div class="metric-label">Trades</div><div class="metric-value">${data.total}</div></div>
+      <div class="metric"><div class="metric-label">Win Rate</div><div class="metric-value ${data.winRate >= 0.5 ? 'pos' : 'neg'}">${data.winRate != null ? (data.winRate*100).toFixed(1)+'%' : '—'}</div></div>
+      <div class="metric"><div class="metric-label">Avg Win</div><div class="metric-value pos">${data.avgWinPct != null ? '+' + (data.avgWinPct*100).toFixed(1)+'%' : '—'}</div></div>
+      <div class="metric"><div class="metric-label">Avg Loss</div><div class="metric-value neg">${data.avgLossPct != null ? (data.avgLossPct*100).toFixed(1)+'%' : '—'}</div></div>
+      <div class="metric"><div class="metric-label">Avg Hold</div><div class="metric-value amber">${data.avgHoldDays != null ? Math.round(data.avgHoldDays)+'d' : '—'}</div></div>
+      <div class="metric"><div class="metric-label">Net P&L</div><div class="metric-value ${f.cls(data.totalNetPnL)}">${f.Msign(data.totalNetPnL)}</div></div>`;
+
+    // Table
+    const tblEl = document.getElementById('analytics-table');
+    if (!tblEl) return;
+    if (!data.summaries.length) { tblEl.innerHTML = `<div class="empty-state"><div class="empty-state-icon">📊</div><div class="empty-state-title">Không có dữ liệu phù hợp</div></div>`; return; }
+
+    const rows = data.summaries.map(({pos, s}) => {
+      const badge = s.netPnL > 0 ? 'badge-green' : 'badge-red';
+      return `<tr onclick="APP.showPage('positions');setTimeout(()=>POSITIONS.openDetail('${pos.id}'),100)" style="cursor:pointer">
+        <td class="mono muted" style="font-size:10px">${pos.closedId || pos.id}</td>
+        <td><strong>${pos.ticker}</strong></td>
+        <td class="mono muted">${pos.closeDate?.slice(0,7)||'—'}</td>
+        <td class="mono muted">${f.days(s.holdDays)}</td>
+        <td class="mono muted">${f.Mshort(s.invested)}</td>
+        <td class="mono ${f.cls(s.netPnL)}">${f.Msign(s.netPnL)}</td>
+        <td><span class="badge ${badge}">${f.pctSign(s.pctPnL)}</span></td>
+        <td class="muted">${(pos.closeReason||'').replace(/_/g,' ')}</td>
+        <td><span class="badge badge-gray">${pos.sector}</span></td>
+        <td class="muted" style="font-size:11px">${(pos.buyingType||'').replace(/_/g,' ')}</td>
+        <td class="muted" style="font-size:11px">${(pos.marketRegime||'').replace(/_/g,' ')}</td>
+      </tr>`;
+    }).join('');
+
+    tblEl.innerHTML = `<table class="tbl"><thead><tr><th>ID</th><th>Ticker</th><th>Close</th><th>Hold</th><th>Invested</th><th>Net P&L</th><th>%</th><th>Reason</th><th>Sector</th><th>Setup</th><th>Regime</th></tr></thead><tbody>${rows}</tbody></table>`;
+  }
+
+  function clearFilters() {
+    ['af-year','af-setup','af-sector','af-regime','af-close','af-result'].forEach(id => { const e = document.getElementById(id); if(e) e.value=''; });
+    updateTable();
+  }
+
+  return { render, updateTable, clearFilters };
+})();
+
+
+// === app.js ===
+// ============================================================
+// APP.JS — Main controller
+// ============================================================
+
+const APP = (() => {
+
+  let _currentPage = 'dashboard';
+
+  // ----------------------------------------------------------
+  // INIT
+  // ----------------------------------------------------------
+  async function init() {
+    // Set year in setup screen
+    const yearEl = document.getElementById('setup-year');
+    if (yearEl) yearEl.textContent = new Date().getFullYear();
+
+    // Init modals HTML
+    MODALS.init();
+
+    // Nav click handlers
+    document.querySelectorAll('.nav-tab').forEach(btn => {
+      btn.addEventListener('click', () => showPage(btn.dataset.page));
+    });
+
+    if (!DATA.isConfigured()) {
+      document.getElementById('setup-screen').classList.add('show');
+      return;
+    }
+
+    try {
+      await DATA.loadFromGist();
+      renderCurrentPage();
+    } catch(e) {
+      // If load fails, show setup again
+      document.getElementById('setup-screen').classList.add('show');
+    }
+  }
+
+  // ----------------------------------------------------------
+  // SETUP SAVE
+  // ----------------------------------------------------------
+  async function setupSave() {
+    const gistId = document.getElementById('setup-gist-id').value.trim();
+    const token  = document.getElementById('setup-token').value.trim();
+    const navM   = parseFloat(document.getElementById('setup-nav').value);
+
+    if (!gistId || !token) { showSetupError('Cần nhập Gist ID và Token'); return; }
+
+    const btn = document.getElementById('setup-btn');
+    btn.textContent = 'Đang kết nối...';
+    btn.disabled = true;
+
+    DATA.setConfig(gistId, token);
+    try {
+      await DATA.loadFromGist();
+      // If new db, set initial nav
+      if (navM && DATA.db().navSnapshots.length === 0) {
+        const year = new Date().getFullYear();
+        DATA.upsertNavSnapshot(`${year}-01-01`, navM, `${year}-start`);
+      }
+      document.getElementById('setup-screen').classList.remove('show');
+      renderCurrentPage();
+    } catch(e) {
+      DATA.setConfig('', ''); // clear bad config
+      showSetupError('Không kết nối được: ' + e.message + '. Kiểm tra lại Gist ID và Token.');
+      btn.textContent = 'Kết nối & bắt đầu →';
+      btn.disabled = false;
+    }
+  }
+
+  function showSetupError(msg) {
+    const err = document.getElementById('setup-error');
+    const txt = document.getElementById('setup-error-text');
+    err.style.display = 'flex';
+    txt.textContent = msg;
+  }
+
+  // ----------------------------------------------------------
+  // NAVIGATION
+  // ----------------------------------------------------------
+  function showPage(page) {
+    _currentPage = page;
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active'));
+    document.getElementById('page-' + page)?.classList.add('active');
+    document.querySelector(`.nav-tab[data-page="${page}"]`)?.classList.add('active');
+    renderCurrentPage();
+  }
+
+  function renderCurrentPage() {
+    switch (_currentPage) {
+      case 'dashboard':   DASHBOARD.render();   break;
+      case 'positions':   POSITIONS.render();   break;
+      case 'derivatives': DERIVATIVES.render(); break;
+      case 'account':     ACCOUNT.render();     break;
+      case 'analytics':   ANALYTICS.render();   break;
+    }
+  }
+
+  // ----------------------------------------------------------
+  // MANUAL SYNC
+  // ----------------------------------------------------------
+  async function syncNow() {
+    await DATA.saveToGist(true);
+  }
+
+  // ----------------------------------------------------------
+  // EXPORT
+  // ----------------------------------------------------------
+  return { init, setupSave, showPage, renderCurrentPage, syncNow };
+})();
+
+// Start
+document.addEventListener('DOMContentLoaded', APP.init);
+
+
+</script>
+</body>
+</html>
