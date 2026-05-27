@@ -1302,9 +1302,12 @@ const IMPORT = (() => {
     const text = await readXlsAsText(file);
     const result = { date: new Date().toISOString().split('T')[0], navM:0, marginM:0, cashM:0, portfolio:[] };
 
-    // Date
-    const dateM = text.match(/(\d{2})[\/\-](\d{2})[\/\-](\d{4})/);
-    if (dateM) result.date = dateM[3]+'-'+dateM[2]+'-'+dateM[1];
+    // Date — use LAST date in file (= report date, not earliest chart date)
+    const allDates = [...text.matchAll(/(\d{2})\/(\d{2})\/(\d{4})/g)];
+    if (allDates.length > 0) {
+      const last = allDates[allDates.length - 1];
+      result.date = last[3]+'-'+last[2]+'-'+last[1];
+    }
 
     // Get value by element ID — works directly on raw XLS HTML
     function byId(id) {
