@@ -1302,66 +1302,58 @@ const IMPORT = (() => {
     const tables = await parseFptsXls(file);
     const result = { date: new Date().toISOString().split('T')[0], navM: 0, marginM: 0, cashM: 0, portfolio: [] };
 
-    // Date detection from any table
+    // Date detection
     for (const rows of tables) {
       for (const row of rows) {
-        const txt = row.join(' ');
-        const m = txt.match(/(\d{2})[\/-](\d{2})[\/-](\d{4})/);
+        const m = row.join(' ').match(/(\d{2})[\/-](\d{2})[\/-](\d{4})/);
         if (m) { result.date = `${m[3]}-${m[2]}-${m[1]}`; break; }
       }
       if (result.date !== new Date().toISOString().split('T')[0]) break;
     }
 
-    // Table 1: 2-col cash/margin summary
-    // II. Tong tien = actual cash (not margin-inflated)
-    // III. Du no vay ky quy = margin balance
-    if (tables[1]) {
-      for (const row of tables[1]) {
+    // Helper: strip non-digits and parse as integer (avoids decimal point confusion)
+    function pInt(v) {
+      const s = String(v || '').replace(/[^0-9]/g, '');
+      return s ? parseInt(s) : null;
+    }
+
+    // CASH & MARGIN from Table 0, col0=label, col1=value (integers, no decimal issues)
+    // "II. Tổng tiền" = actual cash
+    // "III. Dư nợ vay ký quỹ" = margin balance
+    if (tables[0]) {
+      for (const row of tables[0]) {
         const label = (row[0] || '').toLowerCase().trim();
-        const numVal = parseVND(row[1]);
+        const numVal = pInt(row[1]);
         if (!numVal) continue;
-        if (label.startsWith('ii.') || label === 'tổng tiền') {
-          result.cashM = numVal / 1e6;
-        }
-        if (label.startsWith('iii.') || label.includes('dư nợ vay')) {
-          result.marginM = numVal / 1e6;
-        }
+        if (label.includes('ii.')) result.cashM = numVal / 1e6;
+        if (label.includes('iii.')) result.marginM = numVal / 1e6;
       }
     }
 
-    // Portfolio: scan ALL tables for stock rows
-    // Stock row: col0=ticker (2-4 uppercase letters), col4=TongKL, col5=GiaTT, col7=GiaVon
-    // Also handle MBS which may appear in Table 0 with CK cho ve in col3
+    // PORTFOLIO from Table 0
+    // Confirmed col layout (20 cols, merged cells cause NaN padding):
+    //   col0=Ticker, col9=TongKL, col10=GiaTT, col11=GiaTriTT, col12=GiaVon(raw*10 artifact), col13=GiaTriVon
+    // GiaVon is stored ×10 in pandas due to merged cell — use col11/col13 to back-calculate if needed
+    // Simpler: avgCost = GiaTriVon / TongKL
     const seen = new Set();
-    for (const rows of tables) {
-      for (const row of rows) {
+    if (tables[0]) {
+      for (const row of tables[0]) {
         const ticker = (row[0] || '').trim().toUpperCase();
         if (!/^[A-Z]{2,4}$/.test(ticker)) continue;
-        if (['TỔNG','TONG','MÃ','CK'].includes(ticker)) continue;
+        if (['TỔNG','TONG','NAN'].includes(ticker)) continue;
         if (seen.has(ticker)) continue;
 
-        // Try col4=TongKL, col5=GiaTT, col7=GiaVon (Table 2 format)
-        let qty = parseVND(row[4]);
-        let currentPrice = parseVND(row[5]);
-        let avgCost = parseVND(row[7]);
-
-        // If TongKL blank, try col3=CKChoVe as fallback (MBS in Table 0)
-        if (!qty || qty <= 0) {
-          // Sum col1 (SL co the dat ban) + col3 (CK cho ve) for total
-          const avail = parseVND(row[1]);
-          const pending = parseVND(row[3]);
-          if (avail || pending) qty = (avail || 0) + (pending || 0);
-          currentPrice = currentPrice || parseVND(row[6]);
-          avgCost = avgCost || parseVND(row[8]);
-        }
-
+        const qty          = pInt(row[9]);
+        const currentPrice = pInt(row[10]);
+        const giaTriVon    = pInt(row[13]);  // total cost basis
         if (!qty || qty <= 0 || !currentPrice || currentPrice <= 0) continue;
+
+        const avgCost = giaTriVon && qty > 0 ? Math.round(giaTriVon / qty) : currentPrice;
         seen.add(ticker);
-        result.portfolio.push({ ticker, qty, currentPrice, avgCost: avgCost || currentPrice });
+        result.portfolio.push({ ticker, qty, currentPrice, avgCost });
       }
     }
 
-    // NAV = II.Tong tien (actual cash) + market value - margin
     const mktVal = result.portfolio.reduce((s, p) => s + p.qty * p.currentPrice, 0);
     result.navM = (result.cashM + mktVal / 1e6) - result.marginM;
     return result;
