@@ -1299,40 +1299,102 @@ const IMPORT = (() => {
   //     [0]=Ticker [5]=TongKL [6]=GiaTT [7]=GiaTriTT [8]=GiaVon [9]=GiaTriVon
   // ----------------------------------------------------------
   async function parseBaoCaoTaiSan(file) {
-    const text = await readXlsAsText(file);
     const result = { date: new Date().toISOString().split('T')[0], navM:0, marginM:0, cashM:0, portfolio:[] };
 
-    // Date — use LAST date in file (= report date, not earliest chart date)
-    const allDates = [...text.matchAll(/(\d{2})\/(\d{2})\/(\d{4})/g)];
-    if (allDates.length > 0) {
-      const last = allDates[allDates.length - 1];
-      result.date = last[3]+'-'+last[2]+'-'+last[1];
+    // Detect file type
+    const isXlsx = file.name.toLowerCase().endsWith('.xlsx');
+
+    if (isXlsx) {
+      // === XLSX path: read via SheetJS ===
+      const ab = await new Promise((res,rej) => {
+        const r = new FileReader();
+        r.onload = e => res(e.target.result);
+        r.onerror = rej;
+        r.readAsArrayBuffer(file);
+      });
+      const wb = XLSX.read(ab, {type:'array'});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
+
+      for (const row of rows) {
+        const label = String(row[0]||'').trim();
+        const val1  = row[1];
+        const ll = label.toLowerCase();
+
+        // A. Cơ sở = NAV
+        if (label.startsWith('A.') && ll.includes('cơ')) {
+          const v = parseFloat(String(val1).replace(/[^0-9]/g,''));
+          if (v > 1e8) result.navM = v / 1e6;
+        }
+        // II. Tổng tiền = cash
+        if (ll.includes('ii.')) {
+          const v = parseFloat(String(val1).replace(/[^0-9]/g,''));
+          if (!isNaN(v)) result.cashM = v / 1e6;
+        }
+        // III. Dư nợ = margin
+        if (ll.includes('iii.')) {
+          const v = parseFloat(String(val1).replace(/[^0-9]/g,''));
+          if (v > 1e7) result.marginM = v / 1e6;
+        }
+        // Portfolio rows: ticker in col0, TongKL in col[last before price], GiaTT
+        // Row format: [ticker, SLBan, SLBan2, TongKL, GiaTT, GiaTriTT, GiaVon, ...]
+        const ticker = label.toUpperCase();
+        if (/^[A-Z]{2,4}$/.test(ticker) && !['TỔNG','TONG'].includes(ticker)) {
+          // Find price (5000-999000) and qty (100-200000, round)
+          const nums = row.map(v => { const n=parseFloat(String(v).replace(/[^0-9]/g,'')); return isNaN(n)?null:n; }).filter(v=>v!==null&&v>0);
+          const prices = nums.filter(n => n>=3000 && n<=999000);
+          const qtys   = nums.filter(n => n>=100  && n<=200000 && n%100===0);
+          if (prices.length && qtys.length) {
+            const qty = Math.max(...qtys);
+            const currentPrice = prices[0];
+            const avgCost = prices.find(p=>p!==currentPrice)||currentPrice;
+            result.portfolio.push({ticker, qty, currentPrice, avgCost});
+          }
+        }
+        // Date from Highcharts row
+        const full = row.join(' ');
+        const dates = [...full.matchAll(/(\d{2})\/(\d{2})\/(\d{4})/g)];
+        if (dates.length > 0) {
+          const last = dates[dates.length-1];
+          result.date = `${last[3]}-${last[2]}-${last[1]}`;
+        }
+      }
+
+    } else {
+      // === XLS path: HTML-based (FPTS export) ===
+      const text = await readXlsAsText(file);
+
+      // Date — last DD/MM/YYYY
+      const allDates = [...text.matchAll(/(\d{2})\/(\d{2})\/(\d{4})/g)];
+      if (allDates.length > 0) {
+        const last = allDates[allDates.length-1];
+        result.date = `${last[3]}-${last[2]}-${last[1]}`;
+      }
+
+      // Get value by element ID
+      function byId(id) {
+        const re = new RegExp('id="' + id + '"[^>]*>([\d,]+)<');
+        const m = text.match(re);
+        return m ? parseInt(m[1].replace(/,/g,'')) : 0;
+      }
+
+      result.cashM   = byId('spnTotalTien') / 1e6;
+      result.marginM = byId('spnDNVKQ')     / 1e6;
+
+      const tickerMatches = [...text.matchAll(/id="Price_([A-Z]{2,4})"/g)];
+      for (const m of tickerMatches) {
+        const t     = m[1];
+        const qty   = byId('SLCTDB_' + t) + byId('QCV_' + t);
+        const price = byId('Price_'  + t);
+        const avg   = byId('GTBTT_'  + t) || price;
+        if (qty > 0 && price > 0)
+          result.portfolio.push({ ticker: t, qty, currentPrice: price, avgCost: avg });
+      }
+
+      const mktVal = result.portfolio.reduce((s,p) => s + p.qty * p.currentPrice, 0);
+      result.navM  = result.cashM + mktVal / 1e6 - result.marginM;
     }
 
-    // Get value by element ID — works directly on raw XLS HTML
-    function byId(id) {
-      const re = new RegExp('id="' + id + '"[^>]*>([\\d,]+)<');
-      const m = text.match(re);
-      return m ? parseInt(m[1].replace(/,/g,'')) : 0;
-    }
-
-    // Cash & Margin via known IDs
-    result.cashM   = byId('spnTotalTien') / 1e6;
-    result.marginM = byId('spnDNVKQ')     / 1e6;
-
-    // Portfolio: find all tickers via Price_TICKER IDs
-    const tickerMatches = [...text.matchAll(/id="Price_([A-Z]{2,4})"/g)];
-    for (const m of tickerMatches) {
-      const t     = m[1];
-      const qty   = byId('SLCTDB_' + t) + byId('QCV_' + t);
-      const price = byId('Price_'  + t);
-      const avg   = byId('GTBTT_'  + t) || price;
-      if (qty > 0 && price > 0)
-        result.portfolio.push({ ticker: t, qty, currentPrice: price, avgCost: avg });
-    }
-
-    const mktVal = result.portfolio.reduce((s, p) => s + p.qty * p.currentPrice, 0);
-    result.navM  = result.cashM + mktVal / 1e6 - result.marginM;
     return result;
   }
 
@@ -2896,7 +2958,7 @@ const ACCOUNT = (() => {
           </div>
         </div>
         ${navSnaps.length ? `<table class="tbl"><thead><tr><th>Date</th><th>NAV (M)</th><th>Label</th></tr></thead><tbody>${
-          navSnaps.slice(0,12).map(s => `<tr><td class="mono muted">${f.dateFull(s.date)}</td><td class="mono">${s.navM.toFixed(1)}M</td><td class="muted">${s.label||''}</td><td><button class="btn btn-ghost btn-xs" onclick="ACCOUNT.deleteNavSnap('${s.date}')">✕</button></td></tr>`).join('')
+          navSnaps.slice(0,25).map(s => `<tr><td class="mono muted">${f.dateFull(s.date)}</td><td class="mono">${s.navM.toFixed(1)}M</td><td class="muted">${s.label||''}</td><td><button class="btn btn-ghost btn-xs" onclick="ACCOUNT.deleteNavSnap('${s.date}')">✕</button></td></tr>`).join('')
         }</tbody></table>` : `<div class="empty-state" style="padding:20px"><div class="empty-state-title">Chưa có snapshot</div><button class="btn btn-primary btn-sm" onclick="MODALS.openAddNav('${year}-start')">Nhập NAV đầu năm ${year}</button></div>`}
       </div>
 
@@ -2907,11 +2969,12 @@ const ACCOUNT = (() => {
           <button class="btn btn-secondary btn-sm" onclick="MODALS.openAddMargin()">+ Update</button>
         </div>
         ${marginLog.length ? `<table class="tbl"><thead><tr><th>Date</th><th>Dư nợ (M)</th><th>Lãi tháng</th><th>Note</th></tr></thead><tbody>${
-          marginLog.slice(0,12).map(e => `<tr>
+          marginLog.slice(0,25).map((e,idx) => `<tr>
             <td class="mono muted">${f.dateFull(e.date)}</td>
             <td class="mono">${e.balanceM.toFixed(1)}M</td>
             <td class="mono ${e.interestM > 0 ? 'neg' : 'muted'}">${e.interestM > 0 ? '−' + e.interestM.toFixed(2) + 'M' : '—'}</td>
             <td class="muted">${e.note||''}</td>
+            <td><button class="btn btn-ghost btn-xs" onclick="ACCOUNT.deleteMarginEntry('${e.date}','${(e.note||'').replace(/'/g,'')}')">✕</button></td>
           </tr>`).join('')
         }</tbody></table>` : `<div class="empty-state" style="padding:20px"><div class="empty-state-title">Chưa có data</div></div>`}
       </div>
@@ -3015,7 +3078,15 @@ const ACCOUNT = (() => {
     render();
   }
 
-  return { render, exportJson, importJson, handleTaiSanUpload, deleteNavSnap };
+  function deleteMarginEntry(date, note) {
+    if (!confirm('Xoá margin entry ' + date + '?')) return;
+    const db = DATA.db();
+    const before = (db.marginLog || []).length;
+    db.marginLog = (db.marginLog || []).filter(e => !(e.date === date && (e.note||'') === note));
+    if (db.marginLog.length < before) { DATA.markDirty(); render(); }
+  }
+
+  return { render, exportJson, importJson, handleTaiSanUpload, deleteNavSnap, deleteMarginEntry };
 })();
 
 // ============================================================
