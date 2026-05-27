@@ -1302,7 +1302,7 @@ const IMPORT = (() => {
     const tables = await parseFptsXls(file);
     const result = { date: new Date().toISOString().split('T')[0], navM: 0, marginM: 0, cashM: 0, portfolio: [] };
 
-    // Try to get date from filename or first table text
+    // Date detection from any table
     for (const rows of tables) {
       for (const row of rows) {
         const txt = row.join(' ');
@@ -1312,51 +1312,56 @@ const IMPORT = (() => {
       if (result.date !== new Date().toISOString().split('T')[0]) break;
     }
 
-    // Table 1 (index 1): 2-column cash/margin summary
+    // Table 1: 2-col cash/margin summary
+    // II. Tong tien = actual cash (not margin-inflated)
+    // III. Du no vay ky quy = margin balance
     if (tables[1]) {
       for (const row of tables[1]) {
-        const label = (row[0] || '').toLowerCase();
+        const label = (row[0] || '').toLowerCase().trim();
         const numVal = parseVND(row[1]);
-        if (label.includes('tổng tiền') || label.includes('ii.')) {
-          if (numVal) result.cashM = numVal / 1e6;
+        if (!numVal) continue;
+        if (label.startsWith('ii.') || label === 'tổng tiền') {
+          result.cashM = numVal / 1e6;
         }
-        if (label.includes('dư nợ') || label.includes('ký quỹ')) {
-          if (numVal) result.marginM = numVal / 1e6;
+        if (label.startsWith('iii.') || label.includes('dư nợ vay')) {
+          result.marginM = numVal / 1e6;
         }
       }
     }
 
-    // Table 2 (index 2): portfolio rows
-    // Columns: [0]Ticker [1]SLCoTheDatBan [2]SLBanChoKhop [3]CKChoVe [4]TongKL [5]GiaTT [6]GiaTriTT [7]GiaVon [8]GiaTriVon ...
-    // BUT actual data shows: col0=Ticker, col4=TongKL(after skipping blanks), col5=GiaTT, col7=GiaVon
-    if (tables[2]) {
-      for (const row of tables[2]) {
+    // Portfolio: scan ALL tables for stock rows
+    // Stock row: col0=ticker (2-4 uppercase letters), col4=TongKL, col5=GiaTT, col7=GiaVon
+    // Also handle MBS which may appear in Table 0 with CK cho ve in col3
+    const seen = new Set();
+    for (const rows of tables) {
+      for (const row of rows) {
         const ticker = (row[0] || '').trim().toUpperCase();
-        if (!/^[A-Z]{2,4}\d*$/.test(ticker) || ticker === 'TỔNG' || ticker === 'TONG' || ticker === 'MÃ' || ticker === 'CK') continue;
-        // From actual data: col indices 0=ticker,4=TongKL,5=GiaTT,7=GiaVon,8=GiaTriVon
-        const qty          = parseVND(row[4]);
-        const currentPrice = parseVND(row[5]);
-        const avgCost      = parseVND(row[7]);
-        if (!qty || !currentPrice) continue;
+        if (!/^[A-Z]{2,4}$/.test(ticker)) continue;
+        if (['TỔNG','TONG','MÃ','CK'].includes(ticker)) continue;
+        if (seen.has(ticker)) continue;
+
+        // Try col4=TongKL, col5=GiaTT, col7=GiaVon (Table 2 format)
+        let qty = parseVND(row[4]);
+        let currentPrice = parseVND(row[5]);
+        let avgCost = parseVND(row[7]);
+
+        // If TongKL blank, try col3=CKChoVe as fallback (MBS in Table 0)
+        if (!qty || qty <= 0) {
+          // Sum col1 (SL co the dat ban) + col3 (CK cho ve) for total
+          const avail = parseVND(row[1]);
+          const pending = parseVND(row[3]);
+          if (avail || pending) qty = (avail || 0) + (pending || 0);
+          currentPrice = currentPrice || parseVND(row[6]);
+          avgCost = avgCost || parseVND(row[8]);
+        }
+
+        if (!qty || qty <= 0 || !currentPrice || currentPrice <= 0) continue;
+        seen.add(ticker);
         result.portfolio.push({ ticker, qty, currentPrice, avgCost: avgCost || currentPrice });
       }
     }
 
-    // Fallback: scan all tables for portfolio rows if table 2 empty
-    if (!result.portfolio.length) {
-      for (const rows of tables) {
-        for (const row of rows) {
-          const ticker = (row[0] || '').trim().toUpperCase();
-          if (!/^[A-Z]{2,4}\d*$/.test(ticker) || ticker.length > 5) continue;
-          const nums = row.map(parseVND).filter(v => v !== null && v > 100);
-          if (nums.length >= 3) {
-            result.portfolio.push({ ticker, qty: nums[0], currentPrice: nums[1], avgCost: nums[2] });
-          }
-        }
-      }
-    }
-
-    // NAV = cash + market value - margin
+    // NAV = II.Tong tien (actual cash) + market value - margin
     const mktVal = result.portfolio.reduce((s, p) => s + p.qty * p.currentPrice, 0);
     result.navM = (result.cashM + mktVal / 1e6) - result.marginM;
     return result;
