@@ -2915,7 +2915,8 @@ const ACCOUNT = (() => {
       <div class="card" style="margin-bottom:14px">
         <div class="card-hd">
           <span class="card-title">NAV History</span>
-          <div style="display:flex;gap:6px">
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <label class="btn btn-secondary btn-sm" style="cursor:pointer">📂 Upload BaoCaoTaiSan<input type="file" accept=".xls,.xlsx" style="display:none" onchange="ACCOUNT.handleTaiSanUpload(event)"></label>
             <button class="btn btn-secondary btn-sm" onclick="MODALS.openAddNav('${year}-start')">Set ${year} Start</button>
             <button class="btn btn-secondary btn-sm" onclick="MODALS.openAddNav()">+ Update NAV</button>
           </div>
