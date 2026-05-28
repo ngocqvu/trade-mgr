@@ -1304,100 +1304,94 @@ const IMPORT = (() => {
   async function parseBaoCaoTaiSan(file) {
     const result = { date: new Date().toISOString().split('T')[0], navM:0, marginM:0, cashM:0, portfolio:[] };
 
-    // Detect file type
+    function pInt(v) {
+      const s = String(v||'').replace(/[^0-9]/g,'');
+      return s ? parseInt(s) : null;
+    }
+
+    let rows = [];
     const isXlsx = file.name.toLowerCase().endsWith('.xlsx');
 
     if (isXlsx) {
-      // === XLSX path: read via SheetJS ===
       const ab = await new Promise((res,rej) => {
-        const r = new FileReader();
-        r.onload = e => res(e.target.result);
-        r.onerror = rej;
-        r.readAsArrayBuffer(file);
+        const r = new FileReader(); r.onload=e=>res(e.target.result); r.onerror=rej; r.readAsArrayBuffer(file);
       });
       const wb = XLSX.read(ab, {type:'array'});
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
-
-      for (const row of rows) {
-        const label = String(row[0]||'').trim();
-        const val1  = row[1];
-        const ll = label.toLowerCase();
-
-        // A. Cơ sở = NAV
-        if (label.startsWith('A.') && ll.includes('cơ')) {
-          const v = parseFloat(String(val1).replace(/[^0-9]/g,''));
-          if (v > 1e8) result.navM = v / 1e6;
-        }
-        // II. Tổng tiền = cash
-        if (ll.includes('ii.')) {
-          const v = parseFloat(String(val1).replace(/[^0-9]/g,''));
-          if (!isNaN(v)) result.cashM = v / 1e6;
-        }
-        // III. Dư nợ = margin
-        if (ll.includes('iii.')) {
-          const v = parseFloat(String(val1).replace(/[^0-9]/g,''));
-          if (v > 1e7) result.marginM = v / 1e6;
-        }
-        // Portfolio rows: ticker in col0, TongKL in col[last before price], GiaTT
-        // Row format: [ticker, SLBan, SLBan2, TongKL, GiaTT, GiaTriTT, GiaVon, ...]
-        const ticker = label.toUpperCase();
-        if (/^[A-Z]{2,4}$/.test(ticker) && !['TỔNG','TONG'].includes(ticker)) {
-          // Find price (5000-999000) and qty (100-200000, round)
-          const nums = row.map(v => { const n=parseFloat(String(v).replace(/[^0-9]/g,'')); return isNaN(n)?null:n; }).filter(v=>v!==null&&v>0);
-          const prices = nums.filter(n => n>=3000 && n<=999000);
-          const qtys   = nums.filter(n => n>=100  && n<=200000 && n%100===0);
-          if (prices.length && qtys.length) {
-            const qty = Math.max(...qtys);
-            const currentPrice = prices[0];
-            const avgCost = prices.find(p=>p!==currentPrice)||currentPrice;
-            result.portfolio.push({ticker, qty, currentPrice, avgCost});
-          }
-        }
-        // Date from Highcharts row
-        const full = row.join(' ');
-        const dates = [...full.matchAll(/(\d{2})\/(\d{2})\/(\d{4})/g)];
-        if (dates.length > 0) {
-          const last = dates[dates.length-1];
-          result.date = `${last[3]}-${last[2]}-${last[1]}`;
-        }
-      }
-
+      rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header:1, defval:''});
     } else {
-      // === XLS path: HTML-based (FPTS export) ===
+      // XLS = HTML — try ID-based first (FPTS direct download)
       const text = await readXlsAsText(file);
-
-      // Date — last DD/MM/YYYY
-      const allDates = [...text.matchAll(/(\d{2})\/(\d{2})\/(\d{4})/g)];
-      if (allDates.length > 0) {
-        const last = allDates[allDates.length-1];
-        result.date = `${last[3]}-${last[2]}-${last[1]}`;
+      const byId = id => { const m=text.match(new RegExp('id="'+id+'"[^>]*>([\\d,]+)<')); return m?parseInt(m[1].replace(/,/g,'')):0; };
+      const tickers = [...text.matchAll(/id="Price_([A-Z]{2,4})"/g)].map(m=>m[1]);
+      if (tickers.length > 0) {
+        result.cashM   = byId('spnTotalTien') / 1e6;
+        result.marginM = byId('spnDNVKQ') / 1e6;
+        for (const t of tickers) {
+          const qty   = byId('SLCTDB_'+t) + byId('QCV_'+t);
+          const price = byId('Price_'+t);
+          const avg   = byId('GTBTT_'+t) || price;
+          if (qty>0&&price>0) result.portfolio.push({ticker:t,qty,currentPrice:price,avgCost:avg});
+        }
+        const mkt = result.portfolio.reduce((s,p)=>s+p.qty*p.currentPrice,0);
+        result.navM = result.cashM + mkt/1e6 - result.marginM;
+        const allD=[...text.matchAll(/(\d{2})\/(\d{2})\/(\d{4})/g)];
+        if (allD.length){const l=allD[allD.length-1];result.date=`${l[3]}-${l[2]}-${l[1]}`;}
+        return result;
       }
-
-      // Get value by element ID
-      function byId(id) {
-        const re = new RegExp('id="' + id + '"[^>]*>([\d,]+)<');
-        const m = text.match(re);
-        return m ? parseInt(m[1].replace(/,/g,'')) : 0;
-      }
-
-      result.cashM   = byId('spnTotalTien') / 1e6;
-      result.marginM = byId('spnDNVKQ')     / 1e6;
-
-      const tickerMatches = [...text.matchAll(/id="Price_([A-Z]{2,4})"/g)];
-      for (const m of tickerMatches) {
-        const t     = m[1];
-        const qty   = byId('SLCTDB_' + t) + byId('QCV_' + t);
-        const price = byId('Price_'  + t);
-        const avg   = byId('GTBTT_'  + t) || price;
-        if (qty > 0 && price > 0)
-          result.portfolio.push({ ticker: t, qty, currentPrice: price, avgCost: avg });
-      }
-
-      const mktVal = result.portfolio.reduce((s,p) => s + p.qty * p.currentPrice, 0);
-      result.navM  = result.cashM + mktVal / 1e6 - result.marginM;
+      // Fallback: parse HTML tables into rows
+      const doc = new DOMParser().parseFromString(text, 'text/html');
+      doc.querySelectorAll('tr').forEach(tr => {
+        rows.push([...tr.querySelectorAll('td,th')].map(td=>(td.innerText||td.textContent||'').trim()));
+      });
     }
 
+    // === Universal row-based parser ===
+    // Confirmed column layout (all FPTS formats):
+    //   col0=Ticker, col10=TongKL, col11=GiaTT, col12=GiaTriTT, col13=GiaVon
+    //   TỔNG row: col1=TongGiaTriTT (mkt total)
+    //   II. Tổng tiền: col1=cash
+    //   III. Dư nợ: col1=margin
+    let allDates = [];
+
+    for (const row of rows) {
+      const label = String(row[0]||'').trim();
+      const ll = label.toLowerCase();
+      const full = row.join(' ');
+
+      if (ll.startsWith('ii.')) {
+        const v = pInt(row[1]); if (v!==null) result.cashM = v/1e6;
+      }
+      if (ll.startsWith('iii.')) {
+        const v = pInt(row[1]); if (v!==null&&v>0) result.marginM = v/1e6;
+      }
+
+      // TỔNG row: scan all cols for first number > 100M = market total
+      if (ll.startsWith('tổng')&&!ll.includes('thống')&&!ll.includes('tiền')) {
+        for (const v of row.slice(1)) {
+          const n=pInt(v); if (n&&n>1e8){result.navM=n/1e6;break;}
+        }
+      }
+
+      // Stock rows: col10=TongKL, col11=GiaTT, col13=GiaVon
+      const ticker = label.toUpperCase();
+      if (/^[A-Z]{2,4}$/.test(ticker)) {
+        const qty   = pInt(row[10]);
+        const price = pInt(row[11]);
+        const avg   = pInt(row[13]) || price;
+        if (qty&&qty>0&&price&&price>0)
+          if (!result.portfolio.find(p=>p.ticker===ticker))
+            result.portfolio.push({ticker, qty, currentPrice:price, avgCost:avg});
+      }
+
+      allDates.push(...[...full.matchAll(/(\d{2})\/(\d{2})\/(\d{4})/g)]);
+    }
+
+    // NAV = mktTotal + cash - margin
+    if (result.navM > 0) result.navM = result.navM + result.cashM - result.marginM;
+
+    if (allDates.length) {
+      const l=allDates[allDates.length-1]; result.date=`${l[3]}-${l[2]}-${l[1]}`;
+    }
     return result;
   }
 
