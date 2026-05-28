@@ -2948,9 +2948,13 @@ const ACCOUNT = (() => {
 
   // ---- NAV chart ----
   function navChartHtml(snaps, selectedYear) {
-    const sorted = [...snaps].sort((a,b) => a.date.localeCompare(b.date));
-    if (!sorted.length) return '';
-    const pts = sorted.map(s => ({ date: s.date, nav: s.navM }));
+    const allSorted = [...snaps].sort((a,b) => a.date.localeCompare(b.date));
+    if (!allSorted.length) return '';
+    // Filter to selected year
+    const pts = (selectedYear === 'all' ? allSorted : allSorted.filter(s => s.date.startsWith(selectedYear)))
+                .map(s => ({ date: s.date, nav: s.navM, label: s.label }));
+    if (!pts.length) return '<div style="text-align:center;padding:20px;color:var(--text3);font-size:12px">Không có data</div>';
+
     const W = 860, H = 160, PL = 52, PR = 16, PT = 12, PB = 28;
     const cW = W - PL - PR, cH = H - PT - PB;
     const minV = Math.min(...pts.map(p=>p.nav)) * 0.98;
@@ -2958,53 +2962,34 @@ const ACCOUNT = (() => {
     const x = i => PL + (i / (pts.length - 1 || 1)) * cW;
     const y = v => PT + cH - ((v - minV) / (maxV - minV || 1)) * cH;
 
-    // Highlight selected year
-    const inYear = pt => selectedYear === 'all' || pt.date.startsWith(selectedYear);
-
-    const polyFull = pts.map((p,i) => `${x(i)},${y(p.nav)}`).join(' ');
+    const polyLine = pts.map((p,i) => `${x(i)},${y(p.nav)}`).join(' ');
     const areaPath = `M${x(0)},${y(pts[0].nav)} ` + pts.map((p,i)=>`L${x(i)},${y(p.nav)}`).join(' ') + ` L${x(pts.length-1)},${PT+cH} L${PL},${PT+cH} Z`;
 
-    // year boundary lines
+    // Year boundary lines (All view only)
     let yearLines = '';
     if (selectedYear === 'all') {
       const years = [...new Set(pts.map(p=>p.date.slice(0,4)))];
       years.forEach(yr => {
         const idx = pts.findIndex(p=>p.date.startsWith(yr));
         if (idx > 0) yearLines += `<line x1="${x(idx)}" y1="${PT}" x2="${x(idx)}" y2="${PT+cH}" stroke="var(--border2)" stroke-width="1" stroke-dasharray="3,3"/>`;
+        // Year label
+        yearLines += `<text x="${x(idx)}" y="${PT-2}" text-anchor="middle" font-size="8" fill="var(--text3)">${yr}</text>`;
       });
     }
 
-    // x-axis labels — show label if available, else date
     const labelStep = Math.max(1, Math.floor(pts.length / 10));
     const xLabels = pts.map((p,i) => {
       if (i % labelStep !== 0 && i !== pts.length-1) return '';
-      const snap = snaps.find(s=>s.date===p.date);
-      const lbl = snap?.label || p.date.slice(5); // MM-DD
+      const lbl = p.label || p.date.slice(5);
       return `<text x="${x(i)}" y="${H-6}" text-anchor="middle" font-size="9" fill="var(--text3)">${lbl}</text>`;
     }).join('');
 
-    // y-axis labels
     const yTicks = [minV, (minV+maxV)/2, maxV];
     const yLabels = yTicks.map(v => `<text x="${PL-6}" y="${y(v)+4}" text-anchor="end" font-size="9" fill="var(--text3)">${v.toFixed(0)}M</text>`).join('');
 
-    // dots for selected year
-    const dots = pts.filter(inYear).map((p,_,arr) => {
-      const i = pts.indexOf(p);
-      const snap = snaps.find(s=>s.date===p.date);
-      return `<circle cx="${x(i)}" cy="${y(p.nav)}" r="3" fill="var(--green)" stroke="var(--bg2)" stroke-width="1.5"><title>${p.date}: ${p.nav.toFixed(1)}M${snap?.label?' ('+snap.label+')':''}</title></circle>`;
-    }).join('');
-
-    // Dim non-selected line
-    const dimLine = selectedYear !== 'all' ? `
-      <polyline points="${pts.filter(p=>!inYear(p)).map((p,_,arr)=>{const i=pts.indexOf(p);return `${x(i)},${y(p.nav)}`;}).join(' ')}" fill="none" stroke="var(--border2)" stroke-width="1.5"/>
-    ` : '';
-
-    const highlightLine = selectedYear !== 'all' ? (() => {
-      const yrPts = pts.filter(inYear);
-      if (yrPts.length < 2) return '';
-      const poly = yrPts.map(p=>`${x(pts.indexOf(p))},${y(p.nav)}`).join(' ');
-      return `<polyline points="${poly}" fill="none" stroke="var(--green)" stroke-width="2"/>`;
-    })() : `<polyline points="${polyFull}" fill="none" stroke="var(--green)" stroke-width="2"/>`;
+    const dots = pts.map((p,i) =>
+      `<circle cx="${x(i)}" cy="${y(p.nav)}" r="3" fill="var(--green)" stroke="var(--bg2)" stroke-width="1.5"><title>${p.date}: ${p.nav.toFixed(1)}M${p.label?' ('+p.label+')':''}</title></circle>`
+    ).join('');
 
     return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block">
       <defs>
@@ -3015,8 +3000,7 @@ const ACCOUNT = (() => {
       </defs>
       <path d="${areaPath}" fill="url(#navGrad)"/>
       ${yearLines}
-      ${dimLine}
-      ${highlightLine}
+      <polyline points="${polyLine}" fill="none" stroke="var(--green)" stroke-width="2"/>
       ${dots}
       ${yLabels}
       ${xLabels}
@@ -3025,32 +3009,32 @@ const ACCOUNT = (() => {
 
   // ---- Margin chart (dual: margin + NAV overlay when All) ----
   function marginChartHtml(marginLog, navSnaps, selectedYear) {
-    const sorted = [...marginLog].sort((a,b)=>a.date.localeCompare(b.date));
-    if (!sorted.length) return '';
+    const allSorted = [...marginLog].sort((a,b)=>a.date.localeCompare(b.date));
+    if (!allSorted.length) return '';
+    const pts = selectedYear === 'all' ? allSorted : allSorted.filter(p => p.date.startsWith(selectedYear));
+    if (!pts.length) return '<div style="text-align:center;padding:20px;color:var(--text3);font-size:12px">Không có data</div>';
+
     const W = 860, H = 160, PL = 52, PR = 16, PT = 12, PB = 28;
     const cW = W-PL-PR, cH = H-PT-PB;
-    const inYear = pt => selectedYear === 'all' || pt.date.startsWith(selectedYear);
 
-    const minV = Math.min(...sorted.map(p=>p.balanceM))*0.97;
-    const maxV = Math.max(...sorted.map(p=>p.balanceM))*1.03;
-    const x = i => PL + (i/(sorted.length-1||1))*cW;
+    const minV = Math.min(...pts.map(p=>p.balanceM))*0.97;
+    const maxV = Math.max(...pts.map(p=>p.balanceM))*1.03;
+    const x = i => PL + (i/(pts.length-1||1))*cW;
     const y = v => PT+cH-((v-minV)/(maxV-minV||1))*cH;
 
-    const polyAll = sorted.map((p,i)=>`${x(i)},${y(p.balanceM)}`).join(' ');
-    const areaPath = `M${x(0)},${y(sorted[0].balanceM)} `+sorted.map((p,i)=>`L${x(i)},${y(p.balanceM)}`).join(' ')+` L${x(sorted.length-1)},${PT+cH} L${PL},${PT+cH} Z`;
+    const polyLine = pts.map((p,i)=>`${x(i)},${y(p.balanceM)}`).join(' ');
+    const areaPath = `M${x(0)},${y(pts[0].balanceM)} `+pts.map((p,i)=>`L${x(i)},${y(p.balanceM)}`).join(' ')+` L${x(pts.length-1)},${PT+cH} L${PL},${PT+cH} Z`;
 
-    // NAV overlay (when All)
+    // NAV overlay (when All) — scale independently on same canvas
     let navOverlay = '';
     if (selectedYear === 'all' && navSnaps.length > 1) {
       const navSorted = [...navSnaps].sort((a,b)=>a.date.localeCompare(b.date));
       const navMin = Math.min(...navSorted.map(n=>n.navM))*0.97;
       const navMax = Math.max(...navSorted.map(n=>n.navM))*1.03;
-      // scale nav to same y range using margin scale for comparison
-      const allDates = sorted.map(p=>p.date);
-      const navPts = navSorted.filter(n => allDates.length && n.date >= allDates[0] && n.date <= allDates[allDates.length-1]);
+      const dateMin = pts[0].date, dateMax = pts[pts.length-1].date;
+      const dateRange = new Date(dateMax)-new Date(dateMin)||1;
+      const navPts = navSorted.filter(n => n.date >= dateMin && n.date <= dateMax);
       if (navPts.length > 1) {
-        const dateMin = sorted[0].date, dateMax = sorted[sorted.length-1].date;
-        const dateRange = new Date(dateMax)-new Date(dateMin)||1;
         const nx = d => PL + ((new Date(d)-new Date(dateMin))/dateRange)*cW;
         const ny = v => PT+cH-((v-navMin)/(navMax-navMin||1))*cH;
         const navPoly = navPts.map(n=>`${nx(n.date)},${ny(n.navM)}`).join(' ');
@@ -3059,21 +3043,24 @@ const ACCOUNT = (() => {
       }
     }
 
-    const highlightLine = selectedYear !== 'all' ? (() => {
-      const yrPts = sorted.filter(inYear);
-      if (yrPts.length < 2) return '';
-      const poly = yrPts.map(p=>`${x(sorted.indexOf(p))},${y(p.balanceM)}`).join(' ');
-      return `<polyline points="${poly}" fill="none" stroke="var(--amber)" stroke-width="2"/>`;
-    })() : `<polyline points="${polyAll}" fill="none" stroke="var(--amber)" stroke-width="2"/>`;
+    // Year boundary lines (All view)
+    let yearLines = '';
+    if (selectedYear === 'all') {
+      const years = [...new Set(pts.map(p=>p.date.slice(0,4)))];
+      years.forEach(yr => {
+        const idx = pts.findIndex(p=>p.date.startsWith(yr));
+        if (idx > 0) yearLines += `<line x1="${x(idx)}" y1="${PT}" x2="${x(idx)}" y2="${PT+cH}" stroke="var(--border2)" stroke-width="1" stroke-dasharray="3,3"/>`;
+        yearLines += `<text x="${x(idx)}" y="${PT-2}" text-anchor="middle" font-size="8" fill="var(--text3)">${yr}</text>`;
+      });
+    }
 
-    const dots = sorted.filter(inYear).map(p=>{
-      const i = sorted.indexOf(p);
-      return `<circle cx="${x(i)}" cy="${y(p.balanceM)}" r="3" fill="var(--amber)" stroke="var(--bg2)" stroke-width="1.5"><title>${p.date}: ${p.balanceM.toFixed(1)}M${p.note?' ('+p.note+')':''}</title></circle>`;
-    }).join('');
+    const dots = pts.map((p,i)=>
+      `<circle cx="${x(i)}" cy="${y(p.balanceM)}" r="3" fill="var(--amber)" stroke="var(--bg2)" stroke-width="1.5"><title>${p.date}: ${p.balanceM.toFixed(1)}M${p.note?' ('+p.note+')':''}</title></circle>`
+    ).join('');
 
-    const labelStep = Math.max(1, Math.floor(sorted.length/10));
-    const xLabels = sorted.map((p,i)=>{
-      if (i%labelStep!==0 && i!==sorted.length-1) return '';
+    const labelStep = Math.max(1, Math.floor(pts.length/10));
+    const xLabels = pts.map((p,i)=>{
+      if (i%labelStep!==0 && i!==pts.length-1) return '';
       const lbl = p.note || p.date.slice(5);
       return `<text x="${x(i)}" y="${H-6}" text-anchor="middle" font-size="9" fill="var(--text3)">${lbl}</text>`;
     }).join('');
@@ -3094,8 +3081,9 @@ const ACCOUNT = (() => {
         </linearGradient>
       </defs>
       <path d="${areaPath}" fill="url(#marginGrad)"/>
+      ${yearLines}
       ${navOverlay}
-      ${highlightLine}
+      <polyline points="${polyLine}" fill="none" stroke="var(--amber)" stroke-width="2"/>
       ${dots}
       ${yLabels}
       ${xLabels}
