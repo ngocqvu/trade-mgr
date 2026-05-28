@@ -2955,7 +2955,12 @@ const ACCOUNT = (() => {
           </div>
         </div>
         ${navSnaps.length ? `<table class="tbl"><thead><tr><th>Date</th><th>NAV (M)</th><th>Label</th></tr></thead><tbody>${
-          navSnaps.slice(0,25).map(s => `<tr><td class="mono muted">${f.dateFull(s.date)}</td><td class="mono">${s.navM.toFixed(1)}M</td><td class="muted">${s.label||''}</td><td><button class="btn btn-ghost btn-xs" onclick="ACCOUNT.deleteNavSnap('${s.date}')">✕</button></td></tr>`).join('')
+          navSnaps.slice(0,25).map(s => `<tr>
+  <td class="mono muted">${f.dateFull(s.date)}</td>
+  <td class="mono">${s.navM.toFixed(1)}M</td>
+  <td class="muted" onclick="ACCOUNT.editNavLabel('${s.date}','${(s.label||'').replace(/'/g,'')}')" style="cursor:pointer" title="Click để sửa">${s.label||'<span style=color:var(--text4)>+ label</span>'}</td>
+  <td><button class="btn btn-ghost btn-xs" onclick="ACCOUNT.deleteNavSnap('${s.date}')">✕</button></td>
+</tr>`).join('')
         }</tbody></table>` : `<div class="empty-state" style="padding:20px"><div class="empty-state-title">Chưa có snapshot</div><button class="btn btn-primary btn-sm" onclick="MODALS.openAddNav('${year}-start')">Nhập NAV đầu năm ${year}</button></div>`}
       </div>
 
@@ -2970,7 +2975,7 @@ const ACCOUNT = (() => {
             <td class="mono muted">${f.dateFull(e.date)}</td>
             <td class="mono">${e.balanceM.toFixed(1)}M</td>
             <td class="mono ${e.interestM > 0 ? 'neg' : 'muted'}">${e.interestM > 0 ? '−' + e.interestM.toFixed(2) + 'M' : '—'}</td>
-            <td class="muted">${e.note||''}</td>
+            <td class="muted" onclick="ACCOUNT.editMarginNote('${e.date}','${(e.note||'').replace(/'/g,'')}','${e.balanceM}')" style="cursor:pointer" title="Click để sửa">${e.note||'<span style=color:var(--text4)>+ note</span>'}</td>
             <td><button class="btn btn-ghost btn-xs" onclick="ACCOUNT.deleteMarginEntry('${e.date}','${(e.note||'').replace(/'/g,'')}')">✕</button></td>
           </tr>`).join('')
         }</tbody></table>` : `<div class="empty-state" style="padding:20px"><div class="empty-state-title">Chưa có data</div></div>`}
@@ -3083,7 +3088,21 @@ const ACCOUNT = (() => {
     if (db.marginLog.length < before) { DATA.markDirty(); render(); }
   }
 
-  return { render, exportJson, importJson, handleTaiSanUpload, deleteNavSnap, deleteMarginEntry };
+  function editNavLabel(date, currentLabel) {
+    const newLabel = prompt('Sửa label cho ' + date + ':', currentLabel);
+    if (newLabel === null) return;
+    const snap = (DATA.db().navSnapshots||[]).find(s=>s.date===date);
+    if (snap) { snap.label = newLabel; DATA.markDirty(); render(); }
+  }
+
+  function editMarginNote(date, currentNote, balanceM) {
+    const newNote = prompt('Sửa note cho ' + date + ' (' + balanceM + 'M):', currentNote);
+    if (newNote === null) return;
+    const entry = (DATA.db().marginLog||[]).find(e=>e.date===date&&(e.note||'')===currentNote);
+    if (entry) { entry.note = newNote; DATA.markDirty(); render(); }
+  }
+
+  return { render, exportJson, importJson, handleTaiSanUpload, deleteNavSnap, deleteMarginEntry, editNavLabel, editMarginNote };
 })();
 
 // ============================================================
