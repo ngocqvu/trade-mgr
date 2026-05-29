@@ -1436,57 +1436,51 @@ const IMPORT = (() => {
 
   // ----------------------------------------------------------
   // PARSE LichSuKhopLenh.xls
-  // Actual HTML structure (after textContent parse):
-  //   0=Ngay  1=Mua/Ban  2=CK(blank for partial fills)  3=KLKhop  4=GiaKhop  5=GiaTri  6=ThueCK  7=ThueDauTu  8=Phi
-  //   (TiLeVay col is merged/hidden in HTML export — not present)
-  // Skip rows where col1 contains "Tổng"
+  // Structure (from PDF/SheetJS confirmed):
+  //   Main row:    [date] [Mua/Bán] [CK]    [blank] [KL]  [Giá]  [Giá trị] [ThueCK] [ThueDV] [Phí]
+  //   Partial fill:[blank][Mua/Bán] [CK?]   [blank] [KL]  [Giá]  ...
+  //   Ticker blank on partial fills = same ticker as first row of this Mua/Bán group
+  //   "Tổng Mua/Bán" row = end of group, skip
   // ----------------------------------------------------------
   async function parseLichSuKhopLenh(file) {
     const tables = await parseFptsXls(file);
     const legs = [];
-    let lastTicker = null;
 
     for (const rows of tables) {
-      let lastDate = null;
-      let lastType = null;
+      let currentDate = null;
+      let groupTicker = null; // ticker của group Mua/Bán hiện tại
+
       for (const row of rows) {
         const col0 = (row[0] || '').trim();
         const col1 = (row[1] || '').trim();
+        const col2 = (row[2] || '').trim().toUpperCase().replace('NAN', '');
 
-        // Skip summary/header rows
-        if (col1.includes('Tổng') || col1.includes('Tong') || col1.includes('Mua/Bán')) continue;
+        // Skip header và Tổng rows
+        if (col1.includes('Mua/Bán')) continue;
+        if (col1.startsWith('Tổng') || col1.startsWith('Tong')) continue;
+        if (col0.startsWith('Tổng') || col0.startsWith('Tong')) continue;
 
-        // Date row: update lastDate and lastType
+        // Update date nếu có
         const dateMatch = col0.match(/^(\d{2})[\/-](\d{2})[\/-](\d{4})$/);
         if (dateMatch) {
-          lastDate = `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}`;
-          if (col1.includes('Bán') || col1.includes('Ban')) lastType = 'SELL';
-          else if (col1.includes('Mua')) lastType = 'BUY';
-          else lastType = null;
+          currentDate = `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}`;
         }
 
-        // Partial fill row: col0 rỗng (không có date), có qty+price
-        const isPartialFill = !col0 && lastDate;
-        const isMainRow = !!dateMatch && !!lastType;
+        // Xác định type từ col1
+        const isBuy  = col1.includes('Mua');
+        const isSell = col1.includes('Bán') || col1.includes('Ban');
+        if (!isBuy && !isSell) continue;
+        const type = isSell ? 'SELL' : 'BUY';
 
-        if (!isMainRow && !isPartialFill) continue;
+        if (!currentDate) continue;
 
-        // Type: từ col1 nếu có, fallback lastType
-        const type = (col1.includes('Bán') || col1.includes('Ban')) ? 'SELL'
-                   : col1.includes('Mua') ? 'BUY'
-                   : lastType;
-        if (!type) continue;
-
-        const date = lastDate;
-        const tickerRaw = (row[2] || '').trim().toUpperCase().replace('NAN','');
-        if (tickerRaw && /^[A-Z]{2,4}\d*$/.test(tickerRaw) && tickerRaw.length <= 5) {
-          lastTicker = tickerRaw;
+        // Ticker: col2 nếu có, không thì giữ groupTicker
+        if (col2 && /^[A-Z]{2,4}\d*$/.test(col2) && col2.length <= 5) {
+          groupTicker = col2;
         }
-        const ticker = lastTicker;
-        if (!ticker) continue;
+        if (!groupTicker) continue;
 
-        // Column layout confirmed from SheetJS raw output (10 cols):
-        // [0]=Ngày [1]=Mua/Bán [2]=CK [3]=TiLeVay(blank) [4]=KLKhớp [5]=Giákhớp [6]=Giátrị [7]=ThueCK [8]=ThueDauTu [9]=Phí
+        // Columns: [0]=Ngày [1]=Mua/Bán [2]=CK [3]=TiLeVay [4]=KL [5]=Giá [6]=GiáTrị [7]=ThueCK [8]=ThueDV [9]=Phí
         const qty     = parseVND(row[4]);
         const price   = parseVND(row[5]);
         const taxSell = parseVND(row[7]);
@@ -1495,10 +1489,12 @@ const IMPORT = (() => {
 
         if (!qty || qty <= 0 || !price || price <= 0) continue;
 
-        legs.push({ date, type, ticker, qty, price,
+        legs.push({
+          date: currentDate, type, ticker: groupTicker, qty, price,
           value: qty * price, fee: fee || 0,
           taxSell: taxSell || 0, taxDivStock: taxDiv || 0,
-          isMargin: false });
+          isMargin: false
+        });
       }
     }
 
