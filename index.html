@@ -1274,6 +1274,15 @@ const DATA = (() => {
 
 const IMPORT = (() => {
 
+  async function readFileAsArrayBuffer(file) {
+    return new Promise((res, rej) => {
+      const reader = new FileReader();
+      reader.onload = e => res(e.target.result);
+      reader.onerror = rej;
+      reader.readAsArrayBuffer(file);
+    });
+  }
+
   async function readXlsAsText(file) {
     return new Promise((res, rej) => {
       const reader = new FileReader();
@@ -1283,22 +1292,44 @@ const IMPORT = (() => {
     });
   }
 
-  // Parse FPTS XLS — returns array of tables, each table = array of rows, each row = array of cell strings
+  // Parse FPTS XLS/XLSX — dùng SheetJS để đọc mọi format ổn định
+  // Returns: array of tables, each table = array of rows, each row = array of cell strings
   async function parseFptsXls(file) {
-    const text = await readXlsAsText(file);
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(text, 'text/html');
-    const tables = doc.querySelectorAll('table');
-    const result = [];
-    tables.forEach(t => {
-      const rows = [];
-      t.querySelectorAll('tr').forEach(tr => {
-        const cells = [];
-        tr.querySelectorAll('td,th').forEach(td => cells.push((td.innerText || td.textContent || '').trim()));
-        rows.push(cells);
+    const ab = await readFileAsArrayBuffer(file);
+
+    let wb;
+    try {
+      // SheetJS đọc được cả .xls thật, .xlsx, lẫn HTML-disguised .xls
+      wb = XLSX.read(ab, { type: 'array', raw: false, cellText: true, cellDates: false });
+    } catch(e) {
+      // Fallback: HTML-based parsing nếu SheetJS fail
+      const text = await readXlsAsText(file);
+      const doc = new DOMParser().parseFromString(text, 'text/html');
+      const result = [];
+      doc.querySelectorAll('table').forEach(t => {
+        const rows = [];
+        t.querySelectorAll('tr').forEach(tr => {
+          const cells = [];
+          tr.querySelectorAll('td,th').forEach(td => cells.push((td.textContent || '').trim()));
+          rows.push(cells);
+        });
+        result.push(rows);
       });
-      result.push(rows);
-    });
+      return result;
+    }
+
+    // Convert tất cả sheets thành array of tables
+    const result = [];
+    for (const sheetName of wb.SheetNames) {
+      const ws = wb.Sheets[sheetName];
+      // sheet_to_json với header:1 → array of arrays, defval:'' cho empty cells
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false });
+      // Convert mỗi cell sang string, trim
+      const cleaned = rows.map(row =>
+        row.map(cell => String(cell ?? '').trim())
+      );
+      result.push(cleaned);
+    }
     return result;
   }
 
@@ -1405,8 +1436,9 @@ const IMPORT = (() => {
 
   // ----------------------------------------------------------
   // PARSE LichSuKhopLenh.xls
-  // Structure confirmed (cols):
-  //   0=Ngay  1=Mua/Ban  2=CK(blank for partial fills)  3=TiLeVay  4=KLKhop  5=GiaKhop  6=GiaTri  7=ThueTNCN  8=ThueDauTuVon  9=Phi
+  // Actual HTML structure (after textContent parse):
+  //   0=Ngay  1=Mua/Ban  2=CK(blank for partial fills)  3=KLKhop  4=GiaKhop  5=GiaTri  6=ThueCK  7=ThueDauTu  8=Phi
+  //   (TiLeVay col is merged/hidden in HTML export — not present)
   // Skip rows where col1 contains "Tổng"
   // ----------------------------------------------------------
   async function parseLichSuKhopLenh(file) {
@@ -1440,19 +1472,25 @@ const IMPORT = (() => {
         const ticker = lastTicker;
         if (!ticker) continue;
 
-        const isMargin = (row[3] || '').includes('%') || (row[3] || '').includes('50');
-        const qty      = parseVND(row[4]);
-        const price    = parseVND(row[5]);
-        const fee      = parseVND(row[9]);
-        const taxSell  = parseVND(row[7]);
-        const taxDivStock = parseVND(row[8]);
+        // Detect column layout từ số lượng cols trong row
+        // SheetJS giữ đủ cols kể cả blank:
+        //   Format cũ (có TiLeVay): 10 cols → col3=TiLeVay, col4=KL, col5=Gia, col7=ThueCK, col8=ThueDV, col9=Phi
+        //   Format mới (không TiLeVay): 9 cols → col3=KL, col4=Gia, col6=ThueCK, col7=ThueDV, col8=Phi
+        const hasMarginCol = row.length >= 10 && ((row[3]||'').includes('%') || (row[3]||'').includes('50') || (row[3]||'') === '');
+        const offset = hasMarginCol ? 1 : 0;
+
+        const qty     = parseVND(row[3 + offset]);
+        const price   = parseVND(row[4 + offset]);
+        const taxSell = parseVND(row[6 + offset]);
+        const taxDiv  = parseVND(row[7 + offset]);
+        const fee     = parseVND(row[8 + offset]);
 
         if (!qty || qty <= 0 || !price || price <= 0) continue;
 
         legs.push({ date, type, ticker, qty, price,
           value: qty * price, fee: fee || 0,
-          taxSell: taxSell || 0, taxDivStock: taxDivStock || 0,
-          isMargin });
+          taxSell: taxSell || 0, taxDivStock: taxDiv || 0,
+          isMargin: hasMarginCol });
       }
     }
 
