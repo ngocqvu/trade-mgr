@@ -1465,22 +1465,25 @@ const IMPORT = (() => {
           else lastType = null;
         }
 
-        // Partial fill row: col0 rỗng, col1 rỗng hoặc Mua/Bán, có qty+price
-        const isPartialFill = !col0 && !col1 && lastDate && lastType;
-        const isMainRow = dateMatch && lastType;
+        // Partial fill row: col0 rỗng (không có date), có qty+price
+        const isPartialFill = !col0 && lastDate;
+        const isMainRow = !!dateMatch && !!lastType;
 
         if (!isMainRow && !isPartialFill) continue;
 
-        // Ticker: col2
+        // Type: từ col1 nếu có, fallback lastType
+        const type = (col1.includes('Bán') || col1.includes('Ban')) ? 'SELL'
+                   : col1.includes('Mua') ? 'BUY'
+                   : lastType;
+        if (!type) continue;
+
+        const date = lastDate;
         const tickerRaw = (row[2] || '').trim().toUpperCase().replace('NAN','');
         if (tickerRaw && /^[A-Z]{2,4}\d*$/.test(tickerRaw) && tickerRaw.length <= 5) {
           lastTicker = tickerRaw;
         }
         const ticker = lastTicker;
         if (!ticker) continue;
-
-        const date = lastDate;
-        const type = lastType;
 
         // Column layout confirmed from SheetJS raw output (10 cols):
         // [0]=Ngày [1]=Mua/Bán [2]=CK [3]=TiLeVay(blank) [4]=KLKhớp [5]=Giákhớp [6]=Giátrị [7]=ThueCK [8]=ThueDauTu [9]=Phí
