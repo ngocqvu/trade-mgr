@@ -2955,7 +2955,7 @@ const ACCOUNT = (() => {
                 .map(s => ({ date: s.date, nav: s.navM, label: s.label }));
     if (!pts.length) return '<div style="text-align:center;padding:20px;color:var(--text3);font-size:12px">Không có data</div>';
 
-    const W = 860, H = 160, PL = 52, PR = 16, PT = 12, PB = 28;
+    const W = 860, H = 185, PL = 52, PR = 16, PT = 12, PB = 55;
     const cW = W - PL - PR, cH = H - PT - PB;
     const minV = Math.min(...pts.map(p=>p.nav)) * 0.98;
     const maxV = Math.max(...pts.map(p=>p.nav)) * 1.02;
@@ -2977,11 +2977,11 @@ const ACCOUNT = (() => {
       });
     }
 
-    const labelStep = Math.max(1, Math.floor(pts.length / 10));
+    const labelStep = Math.max(1, Math.floor(pts.length / 12));
     const xLabels = pts.map((p,i) => {
       if (i % labelStep !== 0 && i !== pts.length-1) return '';
       const lbl = p.label || p.date.slice(5);
-      return `<text x="${x(i)}" y="${H-6}" text-anchor="middle" font-size="9" fill="var(--text3)">${lbl}</text>`;
+      return `<text x="${x(i)}" y="${PT+cH+8}" text-anchor="end" font-size="8" fill="var(--text3)" transform="rotate(-45,${x(i)},${PT+cH+8})">${lbl}</text>`;
     }).join('');
 
     const yTicks = [minV, (minV+maxV)/2, maxV];
@@ -3007,14 +3007,14 @@ const ACCOUNT = (() => {
     </svg>`;
   }
 
-  // ---- Margin chart (dual: margin + NAV overlay when All) ----
+  // ---- Margin chart (dual: margin + NAV overlay always) ----
   function marginChartHtml(marginLog, navSnaps, selectedYear) {
     const allSorted = [...marginLog].sort((a,b)=>a.date.localeCompare(b.date));
     if (!allSorted.length) return '';
     const pts = selectedYear === 'all' ? allSorted : allSorted.filter(p => p.date.startsWith(selectedYear));
     if (!pts.length) return '<div style="text-align:center;padding:20px;color:var(--text3);font-size:12px">Không có data</div>';
 
-    const W = 860, H = 160, PL = 52, PR = 16, PT = 12, PB = 28;
+    const W = 860, H = 185, PL = 52, PR = 16, PT = 12, PB = 55;
     const cW = W-PL-PR, cH = H-PT-PB;
 
     const minV = Math.min(...pts.map(p=>p.balanceM))*0.97;
@@ -3025,21 +3025,25 @@ const ACCOUNT = (() => {
     const polyLine = pts.map((p,i)=>`${x(i)},${y(p.balanceM)}`).join(' ');
     const areaPath = `M${x(0)},${y(pts[0].balanceM)} `+pts.map((p,i)=>`L${x(i)},${y(p.balanceM)}`).join(' ')+` L${x(pts.length-1)},${PT+cH} L${PL},${PT+cH} Z`;
 
-    // NAV overlay (when All) — scale independently on same canvas
+    // NAV overlay — always show, filtered to same date range
     let navOverlay = '';
-    if (selectedYear === 'all' && navSnaps.length > 1) {
-      const navSorted = [...navSnaps].sort((a,b)=>a.date.localeCompare(b.date));
-      const navMin = Math.min(...navSorted.map(n=>n.navM))*0.97;
-      const navMax = Math.max(...navSorted.map(n=>n.navM))*1.03;
-      const dateMin = pts[0].date, dateMax = pts[pts.length-1].date;
-      const dateRange = new Date(dateMax)-new Date(dateMin)||1;
-      const navPts = navSorted.filter(n => n.date >= dateMin && n.date <= dateMax);
-      if (navPts.length > 1) {
-        const nx = d => PL + ((new Date(d)-new Date(dateMin))/dateRange)*cW;
-        const ny = v => PT+cH-((v-navMin)/(navMax-navMin||1))*cH;
-        const navPoly = navPts.map(n=>`${nx(n.date)},${ny(n.navM)}`).join(' ');
-        navOverlay = `<polyline points="${navPoly}" fill="none" stroke="var(--blue)" stroke-width="1.5" stroke-dasharray="4,3" opacity="0.7"/>
-          <text x="${W-PR-2}" y="${ny(navPts[navPts.length-1].navM)-4}" text-anchor="end" font-size="8" fill="var(--blue)" opacity="0.8">NAV</text>`;
+    if (navSnaps.length > 1) {
+      const navFiltered = [...navSnaps]
+        .filter(n => selectedYear === 'all' || n.date.startsWith(selectedYear))
+        .sort((a,b)=>a.date.localeCompare(b.date));
+      if (navFiltered.length > 1) {
+        const navMin = Math.min(...navFiltered.map(n=>n.navM))*0.97;
+        const navMax = Math.max(...navFiltered.map(n=>n.navM))*1.03;
+        const dateMin = pts[0].date, dateMax = pts[pts.length-1].date;
+        const dateRange = new Date(dateMax)-new Date(dateMin)||1;
+        const navPts = navFiltered.filter(n => n.date >= dateMin && n.date <= dateMax);
+        if (navPts.length > 1) {
+          const nx = d => PL + ((new Date(d)-new Date(dateMin))/dateRange)*cW;
+          const ny = v => PT+cH-((v-navMin)/(navMax-navMin||1))*cH;
+          const navPoly = navPts.map(n=>`${nx(n.date)},${ny(n.navM)}`).join(' ');
+          navOverlay = `<polyline points="${navPoly}" fill="none" stroke="var(--blue)" stroke-width="1.5" stroke-dasharray="4,3" opacity="0.7"/>
+            <text x="${W-PR-2}" y="${ny(navPts[navPts.length-1].navM)-4}" text-anchor="end" font-size="8" fill="var(--blue)" opacity="0.8">NAV</text>`;
+        }
       }
     }
 
@@ -3058,20 +3062,21 @@ const ACCOUNT = (() => {
       `<circle cx="${x(i)}" cy="${y(p.balanceM)}" r="3" fill="var(--amber)" stroke="var(--bg2)" stroke-width="1.5"><title>${p.date}: ${p.balanceM.toFixed(1)}M${p.note?' ('+p.note+')':''}</title></circle>`
     ).join('');
 
-    const labelStep = Math.max(1, Math.floor(pts.length/10));
+    // Vertical x-axis labels
+    const labelStep = Math.max(1, Math.floor(pts.length/12));
     const xLabels = pts.map((p,i)=>{
       if (i%labelStep!==0 && i!==pts.length-1) return '';
       const lbl = p.note || p.date.slice(5);
-      return `<text x="${x(i)}" y="${H-6}" text-anchor="middle" font-size="9" fill="var(--text3)">${lbl}</text>`;
+      return `<text x="${x(i)}" y="${PT+cH+8}" text-anchor="end" font-size="8" fill="var(--text3)" transform="rotate(-45,${x(i)},${PT+cH+8})">${lbl}</text>`;
     }).join('');
 
     const yTicks = [minV,(minV+maxV)/2,maxV];
     const yLabels = yTicks.map(v=>`<text x="${PL-6}" y="${y(v)+4}" text-anchor="end" font-size="9" fill="var(--text3)">${v.toFixed(0)}M</text>`).join('');
 
-    const legend = selectedYear === 'all' ? `<div style="display:flex;gap:12px;font-size:11px;color:var(--text3);margin-bottom:6px">
+    const legend = `<div style="display:flex;gap:12px;font-size:11px;color:var(--text3);margin-bottom:6px">
       <span><span style="display:inline-block;width:20px;height:2px;background:var(--amber);vertical-align:middle;margin-right:4px"></span>Margin</span>
       <span><span style="display:inline-block;width:20px;height:2px;background:var(--blue);border-top:2px dashed var(--blue);vertical-align:middle;margin-right:4px"></span>NAV (overlay)</span>
-    </div>` : '';
+    </div>`;
 
     return `${legend}<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block">
       <defs>
