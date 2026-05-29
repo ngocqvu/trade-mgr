@@ -1472,18 +1472,13 @@ const IMPORT = (() => {
         const ticker = lastTicker;
         if (!ticker) continue;
 
-        // Detect column layout từ số lượng cols trong row
-        // SheetJS giữ đủ cols kể cả blank:
-        //   Format cũ (có TiLeVay): 10 cols → col3=TiLeVay, col4=KL, col5=Gia, col7=ThueCK, col8=ThueDV, col9=Phi
-        //   Format mới (không TiLeVay): 9 cols → col3=KL, col4=Gia, col6=ThueCK, col7=ThueDV, col8=Phi
-        const hasMarginCol = row.length >= 10 && ((row[3]||'').includes('%') || (row[3]||'').includes('50') || (row[3]||'') === '');
-        const offset = hasMarginCol ? 1 : 0;
-
-        const qty     = parseVND(row[3 + offset]);
-        const price   = parseVND(row[4 + offset]);
-        const taxSell = parseVND(row[6 + offset]);
-        const taxDiv  = parseVND(row[7 + offset]);
-        const fee     = parseVND(row[8 + offset]);
+        // Column layout confirmed from SheetJS raw output (10 cols):
+        // [0]=Ngày [1]=Mua/Bán [2]=CK [3]=TiLeVay(blank) [4]=KLKhớp [5]=Giákhớp [6]=Giátrị [7]=ThueCK [8]=ThueDauTu [9]=Phí
+        const qty     = parseVND(row[4]);
+        const price   = parseVND(row[5]);
+        const taxSell = parseVND(row[7]);
+        const taxDiv  = parseVND(row[8]);
+        const fee     = parseVND(row[9]);
 
         if (!qty || qty <= 0 || !price || price <= 0) continue;
 
@@ -1630,7 +1625,9 @@ const IMPORT = (() => {
   // ----------------------------------------------------------
   function parseVND(str) {
     if (str == null || str === '') return null;
-    const s = String(str).replace(/[,\.\s]/g, '').replace(/[đ₫%]/g, '');
+    // SheetJS raw:true trả về string có dấu phẩy ngàn VD: '1,000' hoặc số thực
+    if (typeof str === 'number') return isNaN(str) ? null : str;
+    const s = String(str).replace(/,/g, '').replace(/[đ₫%\s]/g, '');
     const n = parseFloat(s);
     return isNaN(n) ? null : n;
   }
