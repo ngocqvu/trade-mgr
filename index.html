@@ -782,19 +782,20 @@ const DATA = (() => {
 
     } else if (leg.type === 'DIV_CASH') {
       // leg.price = tổng tiền nhận sau thuế (VND)
-      // Avg cost giảm = tiền/cp = leg.price / runningQty
+      // leg._divPerShare = gross dividend per share (để adjust SL) — nếu không có thì tính từ price
       result.fee = 0;
       result.tax = 0;
-      result.netValue = leg.price;  // positive inflow
-      const divPerShare = runningQty > 0 ? leg.price / runningQty : 0;
-      const newCost = Math.max(0, runningCost - leg.price); // cost basis giảm đúng bằng tiền nhận
+      result.netValue = leg.price;
+      const newCost = Math.max(0, runningCost - leg.price);
       result.avgCostAfter = runningQty > 0 ? Math.round(newCost / runningQty) : 0;
       result.qtyAfter = runningQty;
       result._newRunningCost = newCost;
       result._newRunningQty  = runningQty;
-      result._divPerShare = Math.round(divPerShare);
-      // Stoploss nên giảm đúng bằng divPerShare
-      result._slAdjAmount = -Math.round(divPerShare); // âm = giảm stoploss
+      // _divPerShare: ưu tiên giá trị explicit (gross), fallback tính từ price/qty
+      result._divPerShare = leg._divPerShare
+        ? Math.round(leg._divPerShare)
+        : (runningQty > 0 ? Math.round(leg.price / runningQty) : 0);
+      result._slAdjAmount = -result._divPerShare;
 
     } else if (leg.type === 'DIV_STOCK') {
       // leg.qty = shares received
@@ -1848,7 +1849,10 @@ const MODALS = (() => {
    <div class="form-group al-rights-price" style="display:none"><label class="form-label">Giá phát hành (đ)</label><input type="number" id="al-rights-price" placeholder="10000"></div>
    <div class="form-group al-rights-deadline" style="display:none"><label class="form-label">Deadline nộp tiền</label><input type="date" id="al-rights-deadline"></div>
    <!-- DIV_CASH -->
-   <div class="form-group al-divcash" style="display:none;grid-column:1/-1"><label class="form-label">Tiền cổ tức thực nhận (đ, sau 5% TNCN)</label><input type="number" id="al-div-cash-amt" placeholder="9500000" oninput="MODALS.updateLegCalc()"></div>
+   <div class="form-group al-divcash" style="display:none"><label class="form-label">Cổ tức gross/cp (đ, trước thuế) *</label><input type="number" id="al-div-per-share" placeholder="900" oninput="MODALS.updateLegCalc()"></div>
+   <div class="form-group al-divcash" style="display:none"><label class="form-label">Số CP tại ngày ĐKCC *</label><input type="number" id="al-div-shares-at-record" placeholder="25000" oninput="MODALS.updateLegCalc()"></div>
+   <div class="form-group al-divcash" style="display:none"><label class="form-label">Thuế TNCN (đ)</label><input type="number" id="al-div-tax" placeholder="1125000" oninput="MODALS.updateLegCalc()"></div>
+   <div class="form-group al-divcash al-divcash-preview" style="display:none;grid-column:1/-1;background:var(--bg3);padding:8px 12px;border-radius:6px;font-size:12px" id="al-divcash-preview"></div>
    <div class="form-group full"><label class="form-label">Ghi chú</label><input id="al-note" placeholder="scale in / partial exit / thoát theo kế hoạch..."></div>
   </div>
   <div class="computed-row mt-8" id="al-computed" style="display:none">
@@ -1895,6 +1899,11 @@ const MODALS = (() => {
     if (type === 'DIV_CASH') {
       hide('.al-qty-group,.al-price-group,.al-margin-group');
       show('.al-divcash');
+      // Reset fields
+      setVal('al-div-per-share', '');
+      setVal('al-div-shares-at-record', '');
+      setVal('al-div-tax', '');
+      el('al-divcash-preview').textContent = '';
       el('al-computed').style.display = 'none';
     } else if (type === 'DIV_STOCK') {
       el('al-qty-label').textContent = 'Số CP thưởng nhận *';
@@ -1914,7 +1923,28 @@ const MODALS = (() => {
 
   function updateLegCalc() {
     const type = val('al-type');
-    if (['DIV_CASH','DIV_STOCK','RIGHTS'].includes(type)) {
+    if (type === 'DIV_CASH') {
+      const grossPerShare = parseFloat(val('al-div-per-share')) || 0;
+      const sharesAtRecord = parseFloat(val('al-div-shares-at-record')) || 0;
+      const taxAmt = parseFloat(val('al-div-tax')) || 0;
+      const preview = el('al-divcash-preview');
+      if (grossPerShare && sharesAtRecord) {
+        const gross = grossPerShare * sharesAtRecord;
+        const netAmt = gross - taxAmt;
+        const pos = D.getPosition(_addLegPositionId);
+        const lastLeg = pos && pos.legs.length > 0 ? pos.legs[pos.legs.length-1] : null;
+        const currentAvg = lastLeg ? lastLeg.avgCostAfter : 0;
+        const newAvg = currentAvg > 0 ? currentAvg - Math.round(netAmt / (lastLeg?.qtyAfter || sharesAtRecord)) : 0;
+        const sl = pos?.stoplossCurrent || 0;
+        preview.innerHTML = `Gross: <b>${gross.toLocaleString('vi-VN')}đ</b> · Sau thuế: <b>${netAmt.toLocaleString('vi-VN')}đ</b> · Avg cost: ${currentAvg.toLocaleString()}→<b style="color:var(--green)">${newAvg.toLocaleString()}đ</b> · SL: ${sl.toLocaleString()}→<b style="color:var(--green)">${(sl-grossPerShare).toLocaleString()}đ</b>`;
+        preview.style.display = '';
+      } else {
+        preview.style.display = 'none';
+      }
+      el('al-computed').style.display = 'none';
+      return;
+    }
+    if (['DIV_STOCK','RIGHTS'].includes(type)) {
       el('al-computed').style.display = 'none';
       return;
     }
@@ -1945,8 +1975,15 @@ const MODALS = (() => {
     let legData = { type, date, note: val('al-note'), isMargin: val('al-is-margin') === '1' };
 
     if (type === 'DIV_CASH') {
-      legData.price = parseFloat(val('al-div-cash-amt')) || 0;
+      const grossPerShare = parseFloat(val('al-div-per-share')) || 0;
+      const sharesAtRecord = parseFloat(val('al-div-shares-at-record')) || 0;
+      const taxAmt = parseFloat(val('al-div-tax')) || 0;
+      if (!grossPerShare || !sharesAtRecord) { alert('Cần nhập cổ tức/cp và số CP tại ĐKCC'); return; }
+      const gross = grossPerShare * sharesAtRecord;
+      legData.price = gross - taxAmt;  // tổng tiền sau thuế
+      legData._divPerShare = grossPerShare;  // gross per share để adjust SL
       legData.qty = 0;
+      legData.note = legData.note || `Cổ tức ${grossPerShare.toLocaleString()}đ/cp × ${sharesAtRecord.toLocaleString()}cp, sau thuế: ${legData.price.toLocaleString()}đ`;
     } else if (type === 'RIGHTS') {
       legData.qty   = parseFloat(val('al-qty'))   || 0;
       legData.price = parseFloat(val('al-price'))  || 0;
