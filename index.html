@@ -1926,7 +1926,7 @@ const MODALS = (() => {
     if (type === 'DIV_CASH') {
       const grossPerShare = parseFloat(val('al-div-per-share')) || 0;
       const sharesAtRecord = parseFloat(val('al-div-shares-at-record')) || 0;
-      const taxAmt = parseFloat(val('al-div-tax')) || 0;
+      const taxAmt = parseFloat((val("al-div-tax")||"0").replace(/[^0-9.]/g,"")) || 0;
       const preview = el('al-divcash-preview');
       if (grossPerShare && sharesAtRecord) {
         const gross = grossPerShare * sharesAtRecord;
@@ -1934,9 +1934,16 @@ const MODALS = (() => {
         const pos = D.getPosition(_addLegPositionId);
         const lastLeg = pos && pos.legs.length > 0 ? pos.legs[pos.legs.length-1] : null;
         const currentAvg = lastLeg ? lastLeg.avgCostAfter : 0;
-        const newAvg = currentAvg > 0 ? currentAvg - Math.round(netAmt / (lastLeg?.qtyAfter || sharesAtRecord)) : 0;
+        const currentQty = lastLeg ? lastLeg.qtyAfter : 0;
+        const netPerShare = currentQty > 0 ? Math.round(netAmt / currentQty) : 0;
+        const newAvg = Math.max(0, currentAvg - netPerShare);
         const sl = pos?.stoplossCurrent || 0;
-        preview.innerHTML = `Gross: <b>${gross.toLocaleString('vi-VN')}đ</b> · Sau thuế: <b>${netAmt.toLocaleString('vi-VN')}đ</b> · Avg cost: ${currentAvg.toLocaleString()}→<b style="color:var(--green)">${newAvg.toLocaleString()}đ</b> · SL: ${sl.toLocaleString()}→<b style="color:var(--green)">${(sl-grossPerShare).toLocaleString()}đ</b>`;
+        const newSl = Math.max(0, sl - grossPerShare);
+        preview.innerHTML = `
+          Gross: <b>${gross.toLocaleString('vi-VN')}đ</b><br>
+          Sau thuế: <b>${netAmt.toLocaleString('vi-VN')}đ</b> (−${taxAmt.toLocaleString('vi-VN')}đ thuế)<br>
+          Avg cost: ${currentAvg.toLocaleString('vi-VN')} → <b style="color:var(--green)">${newAvg.toLocaleString('vi-VN')}đ</b> (−${netPerShare.toLocaleString('vi-VN')}đ/cp)<br>
+          SL: ${sl.toLocaleString('vi-VN')} → <b style="color:var(--green)">${newSl.toLocaleString('vi-VN')}đ</b> (−${grossPerShare.toLocaleString('vi-VN')}đ/cp gross)`;
         preview.style.display = '';
       } else {
         preview.style.display = 'none';
@@ -1977,7 +1984,7 @@ const MODALS = (() => {
     if (type === 'DIV_CASH') {
       const grossPerShare = parseFloat(val('al-div-per-share')) || 0;
       const sharesAtRecord = parseFloat(val('al-div-shares-at-record')) || 0;
-      const taxAmt = parseFloat(val('al-div-tax')) || 0;
+      const taxAmt = parseFloat((val("al-div-tax")||"0").replace(/[^0-9.]/g,"")) || 0;
       if (!grossPerShare || !sharesAtRecord) { alert('Cần nhập cổ tức/cp và số CP tại ĐKCC'); return; }
       const gross = grossPerShare * sharesAtRecord;
       legData.price = gross - taxAmt;  // tổng tiền sau thuế
@@ -2858,8 +2865,9 @@ const POSITIONS = (() => {
           <div class="timeline-meta">${f.dateFull(leg.date)}${leg.note ? ' · ' + leg.note : ''}</div>
           ${extraStr ? `<div class="timeline-running">${extraStr}</div>` : ''}
         </div>
-        <div style="text-align:right;font-size:10px;color:var(--text3)">
-          KL: ${f.qty(leg.qtyAfter)}
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+          <span style="font-size:10px;color:var(--text3)">KL: ${f.qty(leg.qtyAfter)}</span>
+          <button class="btn btn-ghost btn-xs" style="color:var(--text3);font-size:10px" onclick="event.stopPropagation();POSITIONS.deleteLeg('${pos.id}','${leg.id}')" title="Xóa leg này">✕</button>
         </div>
       </div>`;
     }).join('');
@@ -3006,7 +3014,21 @@ const POSITIONS = (() => {
     render();
   }
 
-  return { render, openDetail, setDetailTab, handleImport, toggleStatus, deletePos, toggleHistorical };
+  function deleteLeg(posId, legId) {
+    if (!confirm('Xóa leg này?')) return;
+    const pos = DATA.getPosition(posId);
+    if (!pos) return;
+    pos.legs = pos.legs.filter(l => String(l.id) !== String(legId));
+    // Reset SL history entries for this leg
+    if (pos._slHistory) pos._slHistory = pos._slHistory.filter(h => String(h.legId) !== String(legId));
+    DATA.recomputeLegs(pos);
+    DATA.savePosition(pos);
+    DATA.markDirty();
+    DATA.saveToGist(true);
+    APP.renderCurrentPage();
+  }
+
+  return { render, openDetail, setDetailTab, handleImport, toggleStatus, deletePos, toggleHistorical, deleteLeg };
 })();
 
 
