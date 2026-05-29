@@ -2393,8 +2393,8 @@ const DASHBOARD = (() => {
       .filter(p => p.stoplossCurrent)
       .map(p => {
         const s = DATA.positionSummary(p);
-        const currentPrice = s.avgCost; // fallback — real price from weekly upload
-        const slDist = p.stoplossCurrent && s.avgCost ? (s.avgCost - p.stoplossCurrent) / s.avgCost : null;
+        const currentPrice = p._currentPrice || s.avgCost;
+        const slDist = p.stoplossCurrent && currentPrice ? (currentPrice - p.stoplossCurrent) / currentPrice : null;
         const pct = slDist != null ? (slDist * 100).toFixed(1) : null;
         const barW = slDist != null ? Math.min(Math.max(slDist * 500, 2), 100) : 0;
         const cls  = slDist == null ? '' : slDist < 0 ? 'neg' : slDist < 0.05 ? 'amber' : 'pos';
@@ -2425,14 +2425,23 @@ const DASHBOARD = (() => {
     const rows = positions.map(p => {
       const s = DATA.positionSummary(p);
       const statusCls = 'badge status-' + p.status.toLowerCase().replace('_','');
+      const mktPrice = p._currentPrice || 0;
+      const unrealized = mktPrice > 0 ? (mktPrice - s.avgCost) * s.currentQty : null;
+      const unrealizedPct = unrealized !== null && s.avgCost > 0 ? unrealized / (s.avgCost * s.currentQty) : null;
+      const pnlDisplay = unrealized !== null ? unrealized : s.netPnL;
+      const pctDisplay = unrealizedPct !== null ? unrealizedPct : s.pctPnL;
+      const priceCell = mktPrice > 0
+        ? `<span class="${mktPrice >= s.avgCost ? 'pos' : 'neg'}">${f.price(mktPrice)}</span>`
+        : `<span class="muted">—</span>`;
       return `<tr onclick="POSITIONS.openDetail('${p.id}')" style="cursor:pointer">
         <td><strong>${p.ticker}</strong></td>
         <td><span class="badge ${statusCls}">${p.status.replace('_',' ')}</span></td>
         <td class="mono muted">${f.dateFull(p.openDate)}</td>
         <td class="mono">${f.qty(s.currentQty)}</td>
         <td class="mono">${f.price(s.avgCost)}</td>
-        <td class="mono ${f.cls(s.netPnL)}">${f.Msign(s.netPnL)}</td>
-        <td class="mono ${f.cls(s.pctPnL)}">${f.pctSign(s.pctPnL)}</td>
+        <td class="mono">${priceCell}</td>
+        <td class="mono ${f.cls(pnlDisplay)}">${f.Msign(pnlDisplay)}</td>
+        <td class="mono ${f.cls(pctDisplay)}">${f.pctSign(pctDisplay)}</td>
         <td class="mono muted">${f.days(s.holdDays)}</td>
         <td><span class="badge badge-gray">${p.sector}</span></td>
         <td class="muted">${p.buyingType?.replace(/_/g,' ')}</td>
@@ -2442,7 +2451,7 @@ const DASHBOARD = (() => {
     return `<div class="card overflow-x">
       <div class="card-hd"><span class="card-title">Open Positions</span><button class="btn btn-secondary btn-sm" onclick="APP.showPage('positions')">Xem tất cả →</button></div>
       <table class="tbl">
-        <thead><tr><th>Ticker</th><th>Status</th><th>Mở</th><th>KL</th><th>Avg Cost</th><th>Net P&L</th><th>%</th><th>Hold</th><th>Sector</th><th>Setup</th></tr></thead>
+        <thead><tr><th>Ticker</th><th>Status</th><th>Mở</th><th>KL</th><th>Avg Cost</th><th>Giá TT</th><th>Net P&L</th><th>%</th><th>Hold</th><th>Sector</th><th>Setup</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>`;
@@ -2607,7 +2616,7 @@ const POSITIONS = (() => {
     const rows = positions.map(p => positionRow(p, true)).join('');
     return `<div class="card overflow-x">
       <table class="tbl">
-        <thead><tr><th>ID</th><th>Status</th><th>Ticker</th><th>KL hiện tại</th><th>Avg Cost</th><th>Net P&L</th><th>%</th><th>Hold</th><th>Sector</th><th>Setup</th><th>SL</th><th></th></tr></thead>
+        <thead><tr><th>ID</th><th>Status</th><th>Ticker</th><th>KL hiện tại</th><th>Avg Cost</th><th>Giá TT</th><th>Net P&L</th><th>%</th><th>Hold</th><th>Sector</th><th>Setup</th><th>SL</th><th></th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>`;
@@ -2633,14 +2642,23 @@ const POSITIONS = (() => {
     const slBadge = p.stoplossCurrent ? `<span class="text-mono text-muted">${f.price(p.stoplossCurrent)}</span>` : '<span class="text-muted">—</span>';
 
     if (isActive) {
+      const mktPrice = p._currentPrice || 0;
+      const unrealized = mktPrice > 0 ? (mktPrice - s.avgCost) * s.currentQty : null;
+      const unrealizedPct = unrealized !== null && s.avgCost > 0 ? unrealized / (s.avgCost * s.currentQty) : null;
+      const pnlDisplay = unrealized !== null ? unrealized : s.netPnL;
+      const pctDisplay = unrealizedPct !== null ? unrealizedPct : s.pctPnL;
+      const priceCell = mktPrice > 0
+        ? `<span class="${mktPrice >= s.avgCost ? 'pos' : 'neg'}">${f.price(mktPrice)}</span>`
+        : `<span class="muted">—</span>`;
       return `<tr onclick="POSITIONS.openDetail('${p.id}')" style="cursor:pointer">
         <td class="mono muted nowrap">${p.id}</td>
         <td><span class="badge ${statusCls}">${p.status.replace(/_/g,' ')}</span></td>
         <td><strong>${p.ticker}</strong></td>
         <td class="mono">${f.qty(s.currentQty)}</td>
         <td class="mono">${f.price(s.avgCost)}</td>
-        <td class="mono ${f.cls(s.netPnL)}">${f.Msign(s.netPnL)}</td>
-        <td class="mono ${f.cls(s.pctPnL)}">${f.pctSign(s.pctPnL)}</td>
+        <td class="mono">${priceCell}</td>
+        <td class="mono ${f.cls(pnlDisplay)}">${f.Msign(pnlDisplay)}</td>
+        <td class="mono ${f.cls(pctDisplay)}">${f.pctSign(pctDisplay)}</td>
         <td class="mono muted">${f.days(s.holdDays)}</td>
         <td><span class="badge badge-gray">${p.sector}</span></td>
         <td class="muted">${(p.buyingType||'').replace(/_/g,' ')}</td>
