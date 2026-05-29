@@ -1485,7 +1485,7 @@ const IMPORT = (() => {
         legs.push({ date, type, ticker, qty, price,
           value: qty * price, fee: fee || 0,
           taxSell: taxSell || 0, taxDivStock: taxDiv || 0,
-          isMargin: hasMarginCol });
+          isMargin: false });
       }
     }
 
