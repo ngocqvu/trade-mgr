@@ -1432,9 +1432,9 @@ const IMPORT = (() => {
         if (!col1.includes('Mua') && !col1.includes('Bán') && !col1.includes('Ban')) continue;
         const type = col1.includes('Bán') || col1.includes('Ban') ? 'SELL' : 'BUY';
 
-        // Ticker: col2, blank for partial fills of same order
-        const tickerRaw = (row[2] || '').trim().toUpperCase();
-        if (/^[A-Z]{2,4}\d*$/.test(tickerRaw) && tickerRaw.length <= 5 && tickerRaw !== 'NAN') {
+        // Ticker: col2, blank/NaN for partial fills of same order
+        const tickerRaw = (row[2] || '').trim().toUpperCase().replace('NAN','');
+        if (tickerRaw && /^[A-Z]{2,4}\d*$/.test(tickerRaw) && tickerRaw.length <= 5) {
           lastTicker = tickerRaw;
         }
         const ticker = lastTicker;
@@ -1519,6 +1519,8 @@ const IMPORT = (() => {
 
   // ----------------------------------------------------------
   // IMPORT LichSuKhopLenh into positions
+  // Strategy: file is authoritative — replace all legs for positions
+  // that originated from FPTS import. Manual positions are left alone.
   // ----------------------------------------------------------
   function importLegsIntoPositions(parsedLegs) {
     const positionsByTicker = {};
@@ -1552,16 +1554,18 @@ const IMPORT = (() => {
         const existing = DATA.getPosition(existingId);
 
         if (existing) {
-          let added = 0;
-          for (const leg of p.legs) {
-            const dup = existing.legs.some(l =>
-              l.date === leg.date && l.type === leg.type &&
-              Math.abs(l.qty - leg.qty) < 1 && Math.abs(l.price - leg.price) < 1
-            );
-            if (!dup) { existing.legs.push(DATA.newLeg(leg)); added++; }
-          }
-          if (added > 0) DATA.savePosition(existing);
-          result.push({ position: existing, isNew: false, legsAdded: added });
+          // REPLACE all legs with file data (file is authoritative)
+          existing.legs = p.legs.map(l => DATA.newLeg({
+            date: l.date, type: l.type, qty: l.qty, price: l.price,
+            fee: l.fee, isMargin: l.isMargin,
+          }));
+          DATA.recomputeLegs(existing);
+          const last = existing.legs[existing.legs.length - 1];
+          existing.status = (last && last.qtyAfter <= 0) ? 'CLOSED' : 'OPEN';
+          if (existing.status === 'CLOSED') existing.closeDate = last.date;
+          else delete existing.closeDate;
+          DATA.savePosition(existing);
+          result.push({ position: existing, isNew: false, legsAdded: existing.legs.length });
         } else {
           const pos = DATA.newPosition({
             id: existingId, ticker, openDate: p.openDate,
