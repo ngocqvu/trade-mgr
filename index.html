@@ -1411,12 +1411,17 @@ const IMPORT = (() => {
         }
       }
 
-      // Stock rows: col10=TongKL, col11=GiaTT, col13=GiaVon
+      // Stock rows — thử nhiều column layouts khác nhau
       const ticker = label.toUpperCase();
       if (/^[A-Z]{2,4}$/.test(ticker)) {
-        const qty   = pInt(row[10]);
-        const price = pInt(row[11]);
-        const avg   = pInt(row[13]) || price;
+        // Format mới (SheetJS): col4=TongKL, col5=GiaTT, col8=GiaVon
+        // Format cũ (HTML):     col10=TongKL, col11=GiaTT, col13=GiaVon
+        let qty, price, avg;
+        // Thử format mới trước
+        qty   = pInt(row[4]);  price = pInt(row[5]);  avg = pInt(row[8]);
+        // Nếu không có, thử format cũ
+        if (!qty || !price) { qty = pInt(row[10]); price = pInt(row[11]); avg = pInt(row[13]); }
+        avg = avg || price;
         if (qty&&qty>0&&price&&price>0)
           if (!result.portfolio.find(p=>p.ticker===ticker))
             result.portfolio.push({ticker, qty, currentPrice:price, avgCost:avg});
