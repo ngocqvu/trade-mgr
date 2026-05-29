@@ -1448,12 +1448,13 @@ const IMPORT = (() => {
 
     for (const rows of tables) {
       let currentDate = null;
-      let groupTicker = null; // ticker của group Mua/Bán hiện tại
+      let groupTicker = null;
+      let groupType = null;
 
       for (const row of rows) {
-        const col0 = (row[0] || '').trim();
-        const col1 = (row[1] || '').trim();
-        const col2 = (row[2] || '').trim().toUpperCase().replace('NAN', '');
+        const col0 = String(row[0]||'').trim();
+        const col1 = String(row[1]||'').trim();
+        const col2 = String(row[2]||'').trim().toUpperCase().replace('NAN','');
 
         // Skip header và Tổng rows
         if (col1.includes('Mua/Bán')) continue;
@@ -1466,33 +1467,29 @@ const IMPORT = (() => {
           currentDate = `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}`;
         }
 
-        // Xác định type từ col1
-        const isBuy  = col1.includes('Mua');
-        const isSell = col1.includes('Bán') || col1.includes('Ban');
-        if (!isBuy && !isSell) continue;
-        const type = isSell ? 'SELL' : 'BUY';
+        // Update type nếu có trong col1
+        if (col1.includes('Bán') || col1.includes('Ban')) groupType = 'SELL';
+        else if (col1.includes('Mua')) groupType = 'BUY';
 
-        if (!currentDate) continue;
+        // Skip nếu chưa có date hoặc type
+        if (!currentDate || !groupType) continue;
 
-        // Ticker: col2 nếu có, không thì giữ groupTicker
+        // Update ticker nếu col2 có ticker hợp lệ
         if (col2 && /^[A-Z]{2,4}\d*$/.test(col2) && col2.length <= 5) {
           groupTicker = col2;
         }
         if (!groupTicker) continue;
 
-        // Columns: [0]=Ngày [1]=Mua/Bán [2]=CK [3]=TiLeVay [4]=KL [5]=Giá [6]=GiáTrị [7]=ThueCK [8]=ThueDV [9]=Phí
-        const qty     = parseVND(row[4]);
-        const price   = parseVND(row[5]);
-        const taxSell = parseVND(row[7]);
-        const taxDiv  = parseVND(row[8]);
-        const fee     = parseVND(row[9]);
-
+        const qty   = parseVND(row[4]);
+        const price = parseVND(row[5]);
         if (!qty || qty <= 0 || !price || price <= 0) continue;
 
         legs.push({
-          date: currentDate, type, ticker: groupTicker, qty, price,
-          value: qty * price, fee: fee || 0,
-          taxSell: taxSell || 0, taxDivStock: taxDiv || 0,
+          date: currentDate, type: groupType, ticker: groupTicker, qty, price,
+          value: qty * price,
+          fee: parseVND(row[9]) || 0,
+          taxSell: parseVND(row[7]) || 0,
+          taxDivStock: parseVND(row[8]) || 0,
           isMargin: false
         });
       }
