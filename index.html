@@ -781,14 +781,20 @@ const DATA = (() => {
       result._sellPnL = (leg.price - costPerShare) * leg.qty - result.fee - result.tax;
 
     } else if (leg.type === 'DIV_CASH') {
-      // leg.price = net cash received after 5% TNCN already deducted by FPTS
+      // leg.price = tổng tiền nhận sau thuế (VND)
+      // Avg cost giảm = tiền/cp = leg.price / runningQty
       result.fee = 0;
-      result.tax = 0;  // already deducted
+      result.tax = 0;
       result.netValue = leg.price;  // positive inflow
-      result.avgCostAfter = runningQty > 0 ? Math.round(runningCost / runningQty) : 0;
+      const divPerShare = runningQty > 0 ? leg.price / runningQty : 0;
+      const newCost = Math.max(0, runningCost - leg.price); // cost basis giảm đúng bằng tiền nhận
+      result.avgCostAfter = runningQty > 0 ? Math.round(newCost / runningQty) : 0;
       result.qtyAfter = runningQty;
-      result._newRunningCost = runningCost;
+      result._newRunningCost = newCost;
       result._newRunningQty  = runningQty;
+      result._divPerShare = Math.round(divPerShare);
+      // Stoploss nên giảm đúng bằng divPerShare
+      result._slAdjAmount = -Math.round(divPerShare); // âm = giảm stoploss
 
     } else if (leg.type === 'DIV_STOCK') {
       // leg.qty = shares received
@@ -838,6 +844,43 @@ const DATA = (() => {
     }
 
     position.legs = computed;
+
+    // Auto-adjust stoploss after corp actions (DIV_CASH / DIV_STOCK)
+    if (position.stoplossCurrent) {
+      let sl = position.stoplossCurrent;
+      if (!position._slHistory) position._slHistory = [];
+
+      for (const leg of computed) {
+        // DIV_CASH: giảm SL đúng bằng divPerShare
+        if (leg.type === 'DIV_CASH' && leg._divPerShare) {
+          const alreadyLogged = position._slHistory.some(h => h.legId === leg.id && h.reason === 'DIV_CASH');
+          if (!alreadyLogged) {
+            const oldSl = sl;
+            sl = Math.max(0, sl - leg._divPerShare);
+            position._slHistory.push({
+              legId: leg.id, date: leg.date, reason: 'DIV_CASH',
+              before: oldSl, after: sl,
+              note: `Cổ tức tiền ${leg._divPerShare.toLocaleString()}đ/cp`
+            });
+          }
+        }
+        // DIV_STOCK: nhân SL với slAdjFactor
+        if (leg.type === 'DIV_STOCK' && leg._slAdjFactor && leg._slAdjFactor < 1) {
+          const alreadyLogged = position._slHistory.some(h => h.legId === leg.id && h.reason === 'DIV_STOCK');
+          if (!alreadyLogged) {
+            const oldSl = sl;
+            sl = Math.round(sl * leg._slAdjFactor);
+            position._slHistory.push({
+              legId: leg.id, date: leg.date, reason: 'DIV_STOCK',
+              before: oldSl, after: sl,
+              note: `Cổ tức CP ${leg.qty.toLocaleString()} shares (×${leg._slAdjFactor.toFixed(4)})`
+            });
+          }
+        }
+      }
+      position.stoplossCurrent = sl;
+    }
+
     return position;
   }
 
